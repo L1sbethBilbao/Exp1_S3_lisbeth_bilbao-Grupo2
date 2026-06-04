@@ -1,0 +1,30 @@
+package com.duoc.empresa_transportista_efs.service;
+
+import java.io.File;
+import java.io.IOException;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+@Service
+public class EfsService {
+
+	@Value("${efs.path}")
+	private String efsPath;
+
+	public File saveToEfs(String key, MultipartFile multipartFile) throws IOException {
+		File dest = new File(efsPath, key);
+		File parentDir = dest.getParentFile();
+		if (parentDir != null && !parentDir.exists()) {
+			parentDir.mkdirs();
+		}
+		multipartFile.transferTo(dest);
+		return dest;
+	}
+
+	public boolean deleteFromEfs(String key) {
+		File file = new File(efsPath, key);
+		return !file.exists() || file.delete();
+	}
+}
