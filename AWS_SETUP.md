@@ -129,15 +129,15 @@ Configurar en el repositorio → Settings → Secrets:
 | `DOCKERHUB_USERNAME` | Usuario Docker Hub |
 | `DOCKERHUB_TOKEN` | Token de acceso Docker Hub |
 | `EC2_HOST` | IP elastica de EC2 (ej. 52.45.88.121) |
-| `EC2_USER` | `ec2-user` (Amazon Linux) |
-| `EC2_SSH_KEY` o `EC2_SSH_KEY_B64` | Clave privada **dsy2204-1.pem** (SSH a EC2) |
+| `USER_SERVER` | `ec2-user` (Amazon Linux) |
+| `EC2_SSH_KEY` | Clave privada **dsy2204-1.pem** completa |
 | `AWS_ACCESS_KEY_ID` | Credencial temporal AWS Academy |
 | `AWS_SECRET_ACCESS_KEY` | Credencial temporal AWS Academy |
 | `AWS_SESSION_TOKEN` | Token de sesion AWS Academy |
 | `AWS_REGION` | Region AWS (ej. us-east-1) |
 | `AWS_S3_BUCKET` | Nombre del bucket S3 (ej. cdy2204-1) |
 
-**Nota:** La conexion SSH a EC2 usa `EC2_USER` + clave PEM. Las credenciales AWS se pasan al **contenedor Docker** para que el microservicio acceda a S3 (requerido en AWS Academy).
+**Nota:** La conexion SSH a EC2 usa `USER_SERVER` + `EC2_SSH_KEY` (mismo patron que semana 2). Las credenciales AWS se pasan al contenedor Docker para S3.
 
 **Importante:** Las credenciales AWS Academy **expiran**. Cuando caduquen, actualiza los 3 secrets en GitHub y vuelve a ejecutar el workflow.
 

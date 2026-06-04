@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
@@ -26,91 +26,77 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      - name: Login to Docker Hub
+      - name: Log in to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest .
+
+      - name: Push Docker Image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Set up AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
-      - name: Validate deploy secrets
-        run: |
-          if [ -z "${{ secrets.EC2_HOST }}" ]; then
-            echo "ERROR: Falta el secret EC2_HOST"
-            exit 1
-          fi
-          if [ -z "${{ secrets.EC2_USER }}" ]; then
-            echo "ERROR: Falta el secret EC2_USER (debe ser ec2-user)"
-            exit 1
-          fi
-          if [ -z "${{ secrets.EC2_SSH_KEY_B64 }}" ] && [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
-            echo "ERROR: Falta EC2_SSH_KEY_B64 o EC2_SSH_KEY (dsy2204-1.pem)"
-            exit 1
-          fi
-          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
-            echo "ERROR: Falta el secret AWS_ACCESS_KEY_ID"
-            exit 1
-          fi
-          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
-            echo "ERROR: Falta el secret AWS_SECRET_ACCESS_KEY"
-            exit 1
-          fi
-          if [ -z "${{ secrets.AWS_SESSION_TOKEN }}" ]; then
-            echo "ERROR: Falta el secret AWS_SESSION_TOKEN"
-            exit 1
-          fi
-          if [ -z "${{ secrets.AWS_REGION }}" ]; then
-            echo "ERROR: Falta el secret AWS_REGION"
-            exit 1
-          fi
-          if [ -z "${{ secrets.AWS_S3_BUCKET }}" ]; then
-            echo "ERROR: Falta el secret AWS_S3_BUCKET"
-            exit 1
-          fi
-
-      - name: Setup SSH key file
+      - name: Configure SSH key file
         env:
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
-          if [ -n "$SSH_KEY_B64" ]; then
-            echo "$SSH_KEY_B64" | base64 -d > deploy_key.pem
-          else
-            printf '%s\n' "$SSH_KEY" > deploy_key.pem
-          fi
-          chmod 600 deploy_key.pem
-          grep -q "BEGIN.*PRIVATE KEY" deploy_key.pem || (echo "ERROR: La clave no tiene formato PEM valido (falta BEGIN)" && exit 1)
-          grep -q "END.*PRIVATE KEY" deploy_key.pem || (echo "ERROR: La clave no tiene formato PEM valido (falta END)" && exit 1)
-          echo "Clave PEM validada correctamente"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_deploy_key
+          chmod 600 ~/.ssh/ec2_deploy_key
+          ssh-keygen -y -f ~/.ssh/ec2_deploy_key > /dev/null
+          echo "Clave PEM valida (formato OK)"
+
+      - name: Test SSH connection to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          USER_SERVER: ${{ secrets.USER_SERVER }}
+        run: |
+          EC2_HOST="$(echo "$EC2_HOST" | tr -d '[:space:]')"
+          USER_SERVER="$(echo "$USER_SERVER" | tr -d '[:space:]')"
+          echo "Conectando como: ${USER_SERVER}@${EC2_HOST}"
+          ssh -i ~/.ssh/ec2_deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o BatchMode=yes \
+            "${USER_SERVER}@${EC2_HOST}" "echo SSH_OK && whoami && hostname"
 
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key_path: deploy_key.pem
-          port: 22
-          timeout: 60s
-          script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            docker stop ${{ env.IMAGE_NAME }} || true
-            docker rm ${{ env.IMAGE_NAME }} || true
-            docker run -d \
-              --name ${{ env.IMAGE_NAME }} \
-              --restart unless-stopped \
-              -p 8080:8080 \
-              -v /mnt/efs:/app/efs \
-              -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
-              -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-              -e AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }} \
-              -e AWS_REGION=${{ secrets.AWS_REGION }} \
-              -e AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }} \
-              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          USER_SERVER: ${{ secrets.USER_SERVER }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+        run: |
+          EC2_HOST="$(echo "$EC2_HOST" | tr -d '[:space:]')"
+          USER_SERVER="$(echo "$USER_SERVER" | tr -d '[:space:]')"
+          AWS_S3_BUCKET="$(echo "$AWS_S3_BUCKET" | tr -d '[:space:]')"
+          SSH_BASE=(ssh -i ~/.ssh/ec2_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          TARGET="${USER_SERVER}@${EC2_HOST}"
+          "${SSH_BASE[@]}" "$TARGET" "echo '${DOCKERHUB_TOKEN}' | docker login -u '${DOCKERHUB_USERNAME}' --password-stdin"
+          "${SSH_BASE[@]}" "$TARGET" "docker pull '${DOCKERHUB_USERNAME}/${{ env.IMAGE_NAME }}:latest'"
+          "${SSH_BASE[@]}" "$TARGET" "docker stop ${{ env.IMAGE_NAME }} 2>/dev/null || true; docker rm ${{ env.IMAGE_NAME }} 2>/dev/null || true"
+          "${SSH_BASE[@]}" "$TARGET" "docker run -d --name ${{ env.IMAGE_NAME }} --restart unless-stopped -p 8080:8080 \
+            -v /mnt/efs:/app/efs \
+            -e AWS_ACCESS_KEY_ID='${AWS_ACCESS_KEY_ID}' \
+            -e AWS_SECRET_ACCESS_KEY='${AWS_SECRET_ACCESS_KEY}' \
+            -e AWS_SESSION_TOKEN='${AWS_SESSION_TOKEN}' \
+            -e AWS_S3_BUCKET='${AWS_S3_BUCKET}' \
+            -e AWS_REGION='us-east-1' \
+            '${DOCKERHUB_USERNAME}/${{ env.IMAGE_NAME }}:latest'"
+          "${SSH_BASE[@]}" "$TARGET" "docker ps"
