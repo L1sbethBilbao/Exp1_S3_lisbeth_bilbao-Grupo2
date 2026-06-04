@@ -41,12 +41,64 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+      - name: Validate deploy secrets
+        run: |
+          if [ -z "${{ secrets.EC2_HOST }}" ]; then
+            echo "ERROR: Falta el secret EC2_HOST"
+            exit 1
+          fi
+          if [ -z "${{ secrets.EC2_USER }}" ]; then
+            echo "ERROR: Falta el secret EC2_USER (debe ser ec2-user)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.EC2_SSH_KEY_B64 }}" ] && [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "ERROR: Falta EC2_SSH_KEY_B64 o EC2_SSH_KEY (dsy2204-1.pem)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "ERROR: Falta el secret AWS_ACCESS_KEY_ID"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "ERROR: Falta el secret AWS_SECRET_ACCESS_KEY"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_SESSION_TOKEN }}" ]; then
+            echo "ERROR: Falta el secret AWS_SESSION_TOKEN"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_REGION }}" ]; then
+            echo "ERROR: Falta el secret AWS_REGION"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_S3_BUCKET }}" ]; then
+            echo "ERROR: Falta el secret AWS_S3_BUCKET"
+            exit 1
+          fi
+
+      - name: Setup SSH key file
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
+        run: |
+          if [ -n "$SSH_KEY_B64" ]; then
+            echo "$SSH_KEY_B64" | base64 -d > deploy_key.pem
+          else
+            printf '%s\n' "$SSH_KEY" > deploy_key.pem
+          fi
+          chmod 600 deploy_key.pem
+          grep -q "BEGIN.*PRIVATE KEY" deploy_key.pem || (echo "ERROR: La clave no tiene formato PEM valido (falta BEGIN)" && exit 1)
+          grep -q "END.*PRIVATE KEY" deploy_key.pem || (echo "ERROR: La clave no tiene formato PEM valido (falta END)" && exit 1)
+          echo "Clave PEM validada correctamente"
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key_path: deploy_key.pem
+          port: 22
+          timeout: 60s
           script: |
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             docker stop ${{ env.IMAGE_NAME }} || true
@@ -56,6 +108,9 @@ jobs:
               --restart unless-stopped \
               -p 8080:8080 \
               -v /mnt/efs:/app/efs \
+              -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+              -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+              -e AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }} \
               -e AWS_REGION=${{ secrets.AWS_REGION }} \
               -e AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }} \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
