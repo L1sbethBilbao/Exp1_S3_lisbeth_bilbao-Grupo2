@@ -4,6 +4,46 @@ Base URL: `http://<IP-ELASTICA-EC2>:8080`
 
 Reemplaza los valores de ejemplo segun tu entorno.
 
+**Coleccion Postman:** `postman/Empresa-Transportista-EFS.postman_collection.json`
+
+---
+
+## Cruce con actividad, pauta y apuntes
+
+| Fuente | Requisito | Como se cumple en este proyecto |
+|--------|-----------|----------------------------------|
+| **actividad_S3.txt** | EFS temporal | `EfsService` guarda en `/app/efs/{fecha}/{transportista}/` |
+| **actividad_S3.txt** | S3 por fecha/transportista | Key: `20250604/TransportesSur/guia001.pdf` |
+| **actividad_S3.txt** | Crear, modificar, eliminar, consultar, descargar | 5 endpoints en `/api/guias` |
+| **actividad_S3.txt** | Sin validacion permisos descarga | No hay Spring Security (profesor: proximas clases) |
+| **actividad_S3.txt** | Docker Hub + GitHub Actions EC2 | `deploy.yml` |
+| **pauta 1** | EFS organizado | Misma key que S3; ver `ls` en EC2 y `docker exec` |
+| **pauta 2** | S3 automatico ordenado | POST sube a bucket con prefijo fecha/transportista |
+| **pauta 3** | Modificar en S3 | PUT actualiza mismo objeto |
+| **pauta 4** | Descargar contenido | `GET /api/guias/download` devuelve bytes del PDF |
+| **pauta 5** | Consultar con filtros | `GET /api/guias?fecha=&transportista=` devuelve `total` |
+| **pauta 6** | Pipeline CI/CD | Push a `main` dispara workflow |
+| **pauta 7** | Video explicativo | Guion abajo + apuntes comandos EC2 |
+| **apuntes** | `df -h`, `ls`, `docker exec` | Seccion 6 — carpeta `20250604/TransportesSur/` (no `pdfs/` del demo del profesor) |
+
+**Nota:** El demo del profesor (`ms-administracion-archivos`) usa key `pdfs/testEFS1.pdf`. Tu actividad pide **fecha/transportista**, por eso en EFS veras carpetas `20250604/TransportesSur/` y no `pdfs/`.
+
+---
+
+## Orden para el VIDEO (apuntes + pauta)
+
+1. **POST** — crear guia (Pauta 1 y 2)
+2. **EC2** — `df -h`, `cd /home/ec2-user/efs`, `ls`, `docker exec` (apuntes 1-7)
+3. **Consola S3** — mostrar objeto creado (apunte 11)
+4. **PUT** — modificar guia (Pauta 3, apunte 12)
+5. **Consola S3** — mostrar archivo modificado
+6. **GET download** — descargar PDF y abrirlo (Pauta 4, apunte 13)
+7. **GET consulta** — mostrar `total` con filtros (Pauta 5, apunte 14)
+8. **DELETE** — eliminar guia (apunte 11 paso 5)
+9. **Consola S3** — verificar que ya no existe
+10. **Git push** — pipeline en vivo (Pauta 6, apunte 15)
+11. **Explicar con detalle** (Pauta 7, apunte 16)
+
 ---
 
 ## 1. Crear guia (POST) — Pauta 1 y 2
@@ -107,12 +147,13 @@ DELETE http://<IP>:8080/api/guias?fecha=20250604&transportista=TransportesSur&no
 
 ---
 
-## 6. Demostracion EFS en video — Pauta 1 maximo
+## 6. Demostracion EFS en video — Pauta 1 maximo (apuntes clase)
 
-En EC2, ejecutar en este orden:
+En EC2, ejecutar en este orden (equivalente a apuntes `cd pdfs/` pero con tu key `fecha/transportista`):
 
 ```bash
 df -h
+ls
 cd /home/ec2-user/efs
 ls
 cd 20250604/TransportesSur/
@@ -124,7 +165,7 @@ ls /app/efs/20250604/TransportesSur/
 exit
 ```
 
-Explicar: el micro escribe en `/app/efs`, Docker mapea a `/home/ec2-user/efs` en Linux, y eso esta montado en Amazon EFS.
+Explicar la cadena (apuntes): micro escribe en `/app/efs` → Docker mapea a `/home/ec2-user/efs` en Linux → Linux escribe en Amazon EFS.
 
 ---
 

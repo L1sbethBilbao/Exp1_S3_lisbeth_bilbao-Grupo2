@@ -1,0 +1,187 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-ef56-7890-abcd-ef1234567890",
+    "name": "Empresa Transportista EFS + S3",
+    "description": "Coleccion alineada con actividad Semana 3, pauta de evaluacion y apuntes de clase.\n\nCaso: empresa transportista — guias de despacho.\nKey en EFS y S3: {fecha}/{transportista}/{nombreGuia}.pdf\nEjemplo: 20250604/TransportesSur/guia001.pdf\n\nBase URL: http://{{ec2_host}}:8080\n\nOrden recomendado para el VIDEO (apuntes + pauta):\n1 POST → 2 PUT → 3 GET download → 4 GET consulta → 5 DELETE\nEntre cada paso mostrar EFS (df -h, ls) y consola S3 en vivo.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Crear guia (POST) — Pauta 1 y 2",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": []
+            },
+            {
+              "key": "fecha",
+              "value": "20250604",
+              "type": "text",
+              "description": "Organiza carpetas en EFS y S3 (actividad)"
+            },
+            {
+              "key": "transportista",
+              "value": "TransportesSur",
+              "type": "text",
+              "description": "Organiza carpetas en EFS y S3 (actividad)"
+            },
+            {
+              "key": "nombreGuia",
+              "value": "guia001",
+              "type": "text",
+              "description": "Se guarda como guia001.pdf"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://{{ec2_host}}:8080/api/guias",
+          "protocol": "http",
+          "host": ["{{ec2_host}}"],
+          "port": "8080",
+          "path": ["api", "guias"]
+        },
+        "description": "Actividad: crear guia + subida automatica a S3.\nPauta 1: EFS temporal con carpetas fecha/transportista.\nPauta 2: objeto en S3 con misma estructura.\n\nTras enviar, en EC2:\ncd /home/ec2-user/efs && ls\ncd 20250604/TransportesSur && ls\n\nEn S3: key 20250604/TransportesSur/guia001.pdf\n\nApuntes: micro -> /app/efs -> EC2 -> EFS"
+      },
+      "response": []
+    },
+    {
+      "name": "2. Modificar guia (PUT) — Pauta 3",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": []
+            },
+            {
+              "key": "fecha",
+              "value": "20250604",
+              "type": "text"
+            },
+            {
+              "key": "transportista",
+              "value": "TransportesSur",
+              "type": "text"
+            },
+            {
+              "key": "nombreGuia",
+              "value": "guia001",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://{{ec2_host}}:8080/api/guias",
+          "protocol": "http",
+          "host": ["{{ec2_host}}"],
+          "port": "8080",
+          "path": ["api", "guias"]
+        },
+        "description": "Actividad: modificar o actualizar guias.\nPauta 3: mismo key en S3, contenido/tamano actualizado.\nApuntes punto 12: modificar y mostrar en S3 que cambio en vivo."
+      },
+      "response": []
+    },
+    {
+      "name": "3. Descargar guia (GET) — Pauta 4",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://{{ec2_host}}:8080/api/guias/download?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001",
+          "protocol": "http",
+          "host": ["{{ec2_host}}"],
+          "port": "8080",
+          "path": ["api", "guias", "download"],
+          "query": [
+            {
+              "key": "fecha",
+              "value": "20250604"
+            },
+            {
+              "key": "transportista",
+              "value": "TransportesSur"
+            },
+            {
+              "key": "nombreGuia",
+              "value": "guia001"
+            }
+          ]
+        },
+        "description": "Actividad: descargar guias (sin validacion de permisos — proximas clases).\nPauta 4: obtener el CONTENIDO del PDF desde S3, no solo listar.\nApuntes punto 13: Save Response, guardar y abrir el PDF.\n\nNO confundir con el endpoint de consulta (GET /api/guias)."
+      },
+      "response": []
+    },
+    {
+      "name": "4. Consultar historial (GET) — Pauta 5",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://{{ec2_host}}:8080/api/guias?fecha=20250604&transportista=TransportesSur",
+          "protocol": "http",
+          "host": ["{{ec2_host}}"],
+          "port": "8080",
+          "path": ["api", "guias"],
+          "query": [
+            {
+              "key": "fecha",
+              "value": "20250604"
+            },
+            {
+              "key": "transportista",
+              "value": "TransportesSur"
+            }
+          ]
+        },
+        "description": "Actividad: consultar guias por transportista y fecha.\nPauta 5: historial con filtros — campo total indica cuantos archivos hay.\nApuntes punto 14: esto SI es listar/contar, distinto de descargar."
+      },
+      "response": []
+    },
+    {
+      "name": "5. Eliminar guia (DELETE) — Pauta 2 integracion",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "http://{{ec2_host}}:8080/api/guias?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001",
+          "protocol": "http",
+          "host": ["{{ec2_host}}"],
+          "port": "8080",
+          "path": ["api", "guias"],
+          "query": [
+            {
+              "key": "fecha",
+              "value": "20250604"
+            },
+            {
+              "key": "transportista",
+              "value": "TransportesSur"
+            },
+            {
+              "key": "nombreGuia",
+              "value": "guia001"
+            }
+          ]
+        },
+        "description": "Actividad: eliminar guias especificas.\nApuntes punto 11 paso 5: eliminar y verificar en S3 que ya no esta.\nRespuesta esperada: 204 No Content.\nHacer este paso al final del video."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "ec2_host",
+      "value": "52.45.88.121"
+    }
+  ]
+}
