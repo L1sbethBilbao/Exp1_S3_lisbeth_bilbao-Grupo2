@@ -22,12 +22,10 @@ public class GuiaDespachoService {
 	private final EfsService efsService;
 	private final S3Service s3Service;
 
-	public GuiaCreadaResponse crearGuia(String fecha, String transportista, String nombreGuia, MultipartFile file)
-			throws IOException {
+	public GuiaCreadaResponse crearGuia(String fecha, String transportista, String nombreGuia, String keyParam,
+			MultipartFile file) throws IOException {
 
-		validarParametros(fecha, transportista, nombreGuia);
-
-		String key = buildKey(fecha, transportista, nombreGuia);
+		String key = resolveKey(keyParam, fecha, transportista, nombreGuia);
 		log.info("Creando guia con key: {}", key);
 
 		efsService.saveToEfs(key, file);
@@ -35,25 +33,22 @@ public class GuiaDespachoService {
 
 		return GuiaCreadaResponse.builder()
 				.key(key)
-				.fecha(fecha.trim())
-				.transportista(transportista.trim())
-				.nombreGuia(normalizarNombreGuia(nombreGuia))
+				.fecha(extraerFecha(key, fecha))
+				.transportista(extraerTransportista(key, transportista))
+				.nombreGuia(obtenerNombreArchivo(key))
 				.mensaje("Guia creada y almacenada en EFS y S3")
 				.build();
 	}
 
-	public byte[] descargarGuia(String fecha, String transportista, String nombreGuia) {
-		validarParametrosConsulta(fecha, transportista);
-		String key = buildKey(fecha, transportista, nombreGuia);
+	public byte[] descargarGuia(String fecha, String transportista, String nombreGuia, String keyParam) {
+		String key = resolveKey(keyParam, fecha, transportista, nombreGuia);
 		return s3Service.downloadAsBytes(key);
 	}
 
-	public GuiaCreadaResponse actualizarGuia(String fecha, String transportista, String nombreGuia,
+	public GuiaCreadaResponse actualizarGuia(String fecha, String transportista, String nombreGuia, String keyParam,
 			MultipartFile file) throws IOException {
 
-		validarParametros(fecha, transportista, nombreGuia);
-
-		String key = buildKey(fecha, transportista, nombreGuia);
+		String key = resolveKey(keyParam, fecha, transportista, nombreGuia);
 		log.info("Actualizando guia con key: {}", key);
 
 		efsService.saveToEfs(key, file);
@@ -61,33 +56,44 @@ public class GuiaDespachoService {
 
 		return GuiaCreadaResponse.builder()
 				.key(key)
-				.fecha(fecha.trim())
-				.transportista(transportista.trim())
-				.nombreGuia(normalizarNombreGuia(nombreGuia))
+				.fecha(extraerFecha(key, fecha))
+				.transportista(extraerTransportista(key, transportista))
+				.nombreGuia(obtenerNombreArchivo(key))
 				.mensaje("Guia actualizada en EFS y S3")
 				.build();
 	}
 
-	public void eliminarGuia(String fecha, String transportista, String nombreGuia) {
-		validarParametrosConsulta(fecha, transportista);
-		String key = buildKey(fecha, transportista, nombreGuia);
+	public void eliminarGuia(String fecha, String transportista, String nombreGuia, String keyParam) {
+		String key = resolveKey(keyParam, fecha, transportista, nombreGuia);
 
 		s3Service.deleteObject(key);
 		efsService.deleteFromEfs(key);
 	}
 
 	public GuiaConsultaResponse consultarGuias(String fecha, String transportista) {
-		validarParametrosConsulta(fecha, transportista);
+		validarFecha(fecha);
 
-		String prefix = fecha.trim() + "/" + transportista.trim() + "/";
+		String prefix = buildListPrefix(fecha, transportista);
 		List<GuiaMetadataDto> guias = s3Service.listByPrefix(prefix);
 
 		return GuiaConsultaResponse.builder()
 				.total(guias.size())
 				.fecha(fecha.trim())
-				.transportista(transportista.trim())
+				.transportista(transportista != null ? transportista.trim() : "")
 				.guias(guias)
 				.build();
+	}
+
+	/**
+	 * Modo profesor (apuntes): key = pdfs/testEFS1.pdf
+	 * Modo actividad: fecha/transportista/nombreGuia.pdf
+	 */
+	public String resolveKey(String keyParam, String fecha, String transportista, String nombreGuia) {
+		if (keyParam != null && !keyParam.isBlank()) {
+			return normalizarKey(keyParam);
+		}
+		validarParametros(fecha, transportista, nombreGuia);
+		return buildKey(fecha, transportista, nombreGuia);
 	}
 
 	public String buildKey(String fecha, String transportista, String nombreGuia) {
@@ -110,19 +116,58 @@ public class GuiaDespachoService {
 		return nombre;
 	}
 
-	private void validarParametros(String fecha, String transportista, String nombreGuia) {
-		validarParametrosConsulta(fecha, transportista);
-		if (nombreGuia == null || nombreGuia.isBlank()) {
-			throw new InvalidFileException("El nombre de la guia es obligatorio");
+	private String normalizarKey(String key) {
+		String normalized = key.trim().replace('\\', '/');
+		if (!normalized.toLowerCase().endsWith(".pdf")) {
+			normalized = normalized + ".pdf";
+		}
+		return normalized;
+	}
+
+	private String buildListPrefix(String fecha, String transportista) {
+		if (transportista == null || transportista.isBlank()) {
+			return fecha.trim() + "/";
+		}
+		return fecha.trim() + "/" + transportista.trim() + "/";
+	}
+
+	private String extraerFecha(String key, String fecha) {
+		if (fecha != null && !fecha.isBlank()) {
+			return fecha.trim();
+		}
+		int slash = key.indexOf('/');
+		return slash >= 0 ? key.substring(0, slash) : key;
+	}
+
+	private String extraerTransportista(String key, String transportista) {
+		if (transportista != null && !transportista.isBlank()) {
+			return transportista.trim();
+		}
+		int first = key.indexOf('/');
+		int last = key.lastIndexOf('/');
+		if (first >= 0 && last > first) {
+			return key.substring(first + 1, last);
+		}
+		return "";
+	}
+
+	private void validarFecha(String fecha) {
+		if (fecha == null || fecha.isBlank()) {
+			throw new InvalidFileException("La fecha es obligatoria");
 		}
 	}
 
 	private void validarParametrosConsulta(String fecha, String transportista) {
-		if (fecha == null || fecha.isBlank()) {
-			throw new InvalidFileException("La fecha es obligatoria");
-		}
+		validarFecha(fecha);
+	}
+
+	private void validarParametros(String fecha, String transportista, String nombreGuia) {
+		validarParametrosConsulta(fecha, transportista);
 		if (transportista == null || transportista.isBlank()) {
 			throw new InvalidFileException("El transportista es obligatorio");
+		}
+		if (nombreGuia == null || nombreGuia.isBlank()) {
+			throw new InvalidFileException("El nombre de la guia es obligatorio");
 		}
 	}
 }

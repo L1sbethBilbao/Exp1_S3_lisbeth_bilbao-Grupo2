@@ -1,0 +1,152 @@
+{
+  "info": {
+    "_postman_id": "semana3-transportista-2026",
+    "name": "Semana 3 — Pruebas Transportista (como profesor)",
+    "description": "# Lista secuencial (actividad + pauta + apuntes)\n\nIgual que en clase del profesor: **key = pdfs/testEFS1.pdf**\n\nEn EC2 veras la carpeta **pdfs/** con **testEFS1.pdf** dentro.\n\n---\n\n## PASO 1 — POST (Postman)\n- file: selecciona un PDF\n- key: `pdfs/testEFS1.pdf`\n\n## PASO 2 — EFS en EC2 (SSH, apuntes)\n```bash\ndf -h\ncd /home/ec2-user/efs\nls\ncd pdfs/\nls\nsudo docker exec -it empresa-transportista-efs bash\nls /app/efs/pdfs/\nexit\n```\n\n## PASO 3 — PUT modificar (Postman)\n- file: otro PDF\n- key: `pdfs/testEFS1.pdf`\n\n## PASO 4 — GET descargar (Postman)\n- key: `pdfs/testEFS1.pdf`\n\n## PASO 5 — GET consultar historial (Postman)\n- fecha: `pdfs` (lista todo bajo pdfs/)\n\n## PASO 6 — DELETE (Postman)\n- key: `pdfs/testEFS1.pdf`\n\n## PASO 7 — GitHub Actions (push main)\n\n## PASO 8 — Video explicativo\n\n---\n\nVariable `ec2_host`: 52.45.88.121",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "PASO 1 | POST | Crear guía | key pdfs/testEFS1.pdf | Pauta 1-2",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('Key como profesor', () => {",
+              "  pm.expect(pm.response.json().key).to.eql('pdfs/testEFS1.pdf');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {"key": "file", "description": "OBLIGATORIO: Select Files → tu PDF", "type": "file", "src": []},
+            {"key": "key", "value": "{{s3_key}}", "type": "text", "description": "Igual que profesor en apuntes"}
+          ]
+        },
+        "url": "http://{{ec2_host}}:8080/api/guias",
+        "description": "Apuntes: form-data file + key pdfs/testEFS1.pdf\n\nDespués en EC2: cd pdfs/ && ls"
+      },
+      "response": []
+    },
+    {
+      "name": "PASO 3 | PUT | Modificar guía | key pdfs/testEFS1.pdf | Pauta 3",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {"key": "file", "description": "PDF modificado", "type": "file", "src": []},
+            {"key": "key", "value": "{{s3_key}}", "type": "text"}
+          ]
+        },
+        "url": "http://{{ec2_host}}:8080/api/guias",
+        "description": "Apunte 12: mostrar en S3 que el archivo cambió."
+      },
+      "response": []
+    },
+    {
+      "name": "PASO 4 | GET | Descargar PDF | key pdfs/testEFS1.pdf | Pauta 4",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Content-Type PDF', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('pdf'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://{{ec2_host}}:8080/api/guias/download?key={{s3_key}}",
+          "host": ["{{ec2_host}}"],
+          "port": "8080",
+          "path": ["api", "guias", "download"],
+          "query": [{"key": "key", "value": "{{s3_key}}"}]
+        },
+        "description": "Apunte 13: Save Response → abrir PDF.\nNo confundir con PASO 5 (consultar)."
+      },
+      "response": []
+    },
+    {
+      "name": "PASO 5 | GET | Consultar historial | fecha=pdfs | Pauta 5",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Campo total', () => pm.expect(pm.response.json().total).to.be.at.least(1));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://{{ec2_host}}:8080/api/guias?fecha=pdfs",
+          "host": ["{{ec2_host}}"],
+          "port": "8080",
+          "path": ["api", "guias"],
+          "query": [{"key": "fecha", "value": "pdfs"}]
+        },
+        "description": "Apunte 14: lista y cuenta archivos bajo pdfs/.\nActividad: filtros por fecha (aquí fecha=pdfs como carpeta raíz)."
+      },
+      "response": []
+    },
+    {
+      "name": "PASO 6 | DELETE | Eliminar guía | key pdfs/testEFS1.pdf",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "http://{{ec2_host}}:8080/api/guias?key={{s3_key}}",
+          "host": ["{{ec2_host}}"],
+          "port": "8080",
+          "path": ["api", "guias"],
+          "query": [{"key": "key", "value": "{{s3_key}}"}]
+        },
+        "description": "Apunte 11 paso 5: verificar en S3 que ya no existe."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {"key": "ec2_host", "value": "52.45.88.121"},
+    {"key": "s3_key", "value": "pdfs/testEFS1.pdf"}
+  ]
+}

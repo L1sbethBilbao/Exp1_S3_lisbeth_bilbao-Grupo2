@@ -31,23 +31,25 @@ public class GuiaDespachoController {
 	@PostMapping
 	public ResponseEntity<GuiaCreadaResponse> crearGuia(
 			@RequestParam("file") MultipartFile file,
-			@RequestParam String fecha,
-			@RequestParam String transportista,
-			@RequestParam String nombreGuia) throws IOException {
+			@RequestParam(required = false) String key,
+			@RequestParam(required = false) String fecha,
+			@RequestParam(required = false) String transportista,
+			@RequestParam(required = false) String nombreGuia) throws IOException {
 
-		GuiaCreadaResponse response = guiaDespachoService.crearGuia(fecha, transportista, nombreGuia, file);
+		GuiaCreadaResponse response = guiaDespachoService.crearGuia(fecha, transportista, nombreGuia, key, file);
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
 	}
 
 	@GetMapping("/download")
 	public ResponseEntity<byte[]> descargarGuia(
-			@RequestParam String fecha,
-			@RequestParam String transportista,
-			@RequestParam String nombreGuia) {
+			@RequestParam(required = false) String key,
+			@RequestParam(required = false) String fecha,
+			@RequestParam(required = false) String transportista,
+			@RequestParam(required = false) String nombreGuia) {
 
-		byte[] fileBytes = guiaDespachoService.descargarGuia(fecha, transportista, nombreGuia);
-		String key = guiaDespachoService.buildKey(fecha, transportista, nombreGuia);
-		String filename = guiaDespachoService.obtenerNombreArchivo(key);
+		String resolvedKey = guiaDespachoService.resolveKey(key, fecha, transportista, nombreGuia);
+		byte[] fileBytes = guiaDespachoService.descargarGuia(fecha, transportista, nombreGuia, key);
+		String filename = guiaDespachoService.obtenerNombreArchivo(resolvedKey);
 
 		return ResponseEntity.ok()
 				.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
@@ -58,28 +60,30 @@ public class GuiaDespachoController {
 	@PutMapping
 	public ResponseEntity<GuiaCreadaResponse> actualizarGuia(
 			@RequestParam("file") MultipartFile file,
-			@RequestParam String fecha,
-			@RequestParam String transportista,
-			@RequestParam String nombreGuia) throws IOException {
+			@RequestParam(required = false) String key,
+			@RequestParam(required = false) String fecha,
+			@RequestParam(required = false) String transportista,
+			@RequestParam(required = false) String nombreGuia) throws IOException {
 
-		GuiaCreadaResponse response = guiaDespachoService.actualizarGuia(fecha, transportista, nombreGuia, file);
+		GuiaCreadaResponse response = guiaDespachoService.actualizarGuia(fecha, transportista, nombreGuia, key, file);
 		return ResponseEntity.ok(response);
 	}
 
 	@DeleteMapping
 	public ResponseEntity<Void> eliminarGuia(
-			@RequestParam String fecha,
-			@RequestParam String transportista,
-			@RequestParam String nombreGuia) {
+			@RequestParam(required = false) String key,
+			@RequestParam(required = false) String fecha,
+			@RequestParam(required = false) String transportista,
+			@RequestParam(required = false) String nombreGuia) {
 
-		guiaDespachoService.eliminarGuia(fecha, transportista, nombreGuia);
+		guiaDespachoService.eliminarGuia(fecha, transportista, nombreGuia, key);
 		return ResponseEntity.noContent().build();
 	}
 
 	@GetMapping
 	public ResponseEntity<GuiaConsultaResponse> consultarGuias(
 			@RequestParam String fecha,
-			@RequestParam String transportista) {
+			@RequestParam(required = false) String transportista) {
 
 		GuiaConsultaResponse response = guiaDespachoService.consultarGuias(fecha, transportista);
 		return ResponseEntity.ok(response);
