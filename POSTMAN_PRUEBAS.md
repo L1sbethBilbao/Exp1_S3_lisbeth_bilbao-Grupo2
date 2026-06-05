@@ -20,14 +20,14 @@ La coleccion tiene dos carpetas:
 |--------|-----------|----------------------------------|
 | **actividad_S3.txt** | EFS temporal | `EfsService.saveToEfs()` guarda en `/app/efs/{fecha}/{transportista}/` |
 | **actividad_S3.txt** | S3 por fecha/transportista | `AwsS3Service.upload(bucket, key, file)` con key `20250604/TransportesSur/guia001.pdf` |
-| **actividad_S3.txt** | Crear, modificar, eliminar, consultar, descargar | 5 endpoints en `/api/guias` |
+| **actividad_S3.txt** | Crear, modificar, eliminar, consultar, descargar | Endpoints en `/s3/{bucket}/` (igual al profesor) |
 | **actividad_S3.txt** | Sin validacion permisos descarga | No hay Spring Security (profesor: proximas clases) |
 | **actividad_S3.txt** | Docker Hub + GitHub Actions EC2 | `deploy.yml` |
 | **pauta 1** | EFS organizado | Misma key que S3; ver `ls` en EC2 y `docker exec` |
 | **pauta 2** | S3 automatico ordenado | POST sube a bucket con prefijo fecha/transportista |
 | **pauta 3** | Modificar en S3 | PUT actualiza mismo objeto |
-| **pauta 4** | Descargar contenido | `GET /api/guias/download` devuelve bytes del PDF |
-| **pauta 5** | Consultar con filtros | `GET /api/guias?fecha=&transportista=` usa `AwsS3Service.listObjects()` y filtra por prefijo |
+| **pauta 4** | Descargar contenido | `GET /s3/{bucket}/object` devuelve bytes del PDF |
+| **pauta 5** | Consultar con filtros | `GET /s3/{bucket}/consulta?fecha=&transportista=` filtra por prefijo |
 | **pauta 6** | Pipeline CI/CD | Push a `main` dispara workflow |
 | **pauta 7** | Video explicativo | Guion abajo + apuntes comandos EC2 |
 | **apuntes** | `df -h`, `ls`, `docker exec` | Seccion 6 — carpeta `20250604/TransportesSur/` (no `pdfs/` del demo del profesor) |
@@ -55,7 +55,7 @@ La coleccion tiene dos carpetas:
 ## 1. Crear guia (POST) — Pauta 1 y 2
 
 ```
-POST http://<IP>:8080/api/guias
+POST http://<IP>:8080/s3/<BUCKET>/object
 Content-Type: multipart/form-data
 ```
 
@@ -66,17 +66,7 @@ Content-Type: multipart/form-data
 | transportista | Text | TransportesSur |
 | nombreGuia | Text | guia001 |
 
-**Respuesta esperada:** `201 Created`
-
-```json
-{
-  "key": "20250604/TransportesSur/guia001.pdf",
-  "fecha": "20250604",
-  "transportista": "TransportesSur",
-  "nombreGuia": "guia001.pdf",
-  "mensaje": "Guia creada y almacenada en EFS y S3"
-}
-```
+**Respuesta esperada:** `201 Created` (sin body, igual al profesor)
 
 **Verificar en EC2:**
 
@@ -92,7 +82,7 @@ ls /home/ec2-user/efs/20250604/TransportesSur/
 ## 2. Consultar guias (GET) — Pauta 5
 
 ```
-GET http://<IP>:8080/api/guias?fecha=20250604&transportista=TransportesSur
+GET http://<IP>:8080/s3/<BUCKET>/consulta?fecha=20250604&transportista=TransportesSur
 ```
 
 **Respuesta esperada:**
@@ -119,7 +109,7 @@ Importante: esto **cuenta y lista** archivos. No confundir con descargar.
 ## 3. Descargar guia (GET) — Pauta 4
 
 ```
-GET http://<IP>:8080/api/guias/download?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001
+GET http://<IP>:8080/s3/<BUCKET>/object?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001
 ```
 
 **Respuesta esperada:** archivo PDF binario (Save Response → guardar y abrir el PDF).
@@ -131,7 +121,7 @@ No basta con listar; debes **obtener el contenido** del archivo.
 ## 4. Modificar guia (PUT) — Pauta 3
 
 ```
-PUT http://<IP>:8080/api/guias
+PUT http://<IP>:8080/s3/<BUCKET>/object
 Content-Type: multipart/form-data
 ```
 
@@ -144,13 +134,13 @@ Mismos campos que POST, pero con un PDF **diferente** (contenido modificado).
 ## 5. Eliminar guia (DELETE)
 
 ```
-DELETE http://<IP>:8080/api/guias?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001
+DELETE http://<IP>:8080/s3/<BUCKET>/object?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001
 ```
 
 Tambien funciona con `key` directa (modo profesor):
 
 ```
-DELETE http://<IP>:8080/api/guias?key=pdfs/testEFS1.pdf
+DELETE http://<IP>:8080/s3/<BUCKET>/object?key=pdfs/testEFS1.pdf
 ```
 
 **Respuesta esperada:** `204 No Content`
@@ -215,7 +205,7 @@ Orden sugerido:
 Todas las pruebas se hacen contra la instancia desplegada:
 
 ```
-http://<IP-ELASTICA-EC2>:8080/api/guias
+http://<IP-ELASTICA-EC2>:8080/s3/<BUCKET>/
 ```
 
 Orden recomendado:
@@ -234,9 +224,10 @@ Orden recomendado:
 | Variable | Valor ejemplo | Uso |
 |----------|---------------|-----|
 | `ec2_host` | `52.45.88.121` | IP elastica de EC2 |
+| `bucket` | `tu-bucket-guias` | Nombre del bucket S3 (igual que `AWS_S3_BUCKET`) |
 | `fecha` | `20250604` | Modo actividad |
 | `transportista` | `TransportesSur` | Modo actividad |
 | `nombreGuia` | `guia001` | Modo actividad (sin .pdf) |
 | `s3_key` | `pdfs/testEFS1.pdf` | Modo profesor |
 
-El bucket S3 **no** va en la URL; se configura en `aws.s3.bucket` / variable de entorno `AWS_S3_BUCKET`.
+El bucket va en la URL como `{bucket}` (igual al profesor). Debe coincidir con `AWS_S3_BUCKET` en EC2.

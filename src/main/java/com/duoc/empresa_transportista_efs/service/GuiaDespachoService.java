@@ -1,15 +1,11 @@
 package com.duoc.empresa_transportista_efs.service;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.duoc.empresa_transportista_efs.dto.GuiaConsultaResponse;
-import com.duoc.empresa_transportista_efs.dto.GuiaCreadaResponse;
 import com.duoc.empresa_transportista_efs.dto.GuiaMetadataDto;
 import com.duoc.empresa_transportista_efs.exception.InvalidFileException;
 
@@ -21,105 +17,17 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class GuiaDespachoService {
 
-	private final EfsService efsService;
 	private final AwsS3Service awsS3Service;
-
-	@Value("${aws.s3.bucket}")
-	private String bucket;
-
-	/**
-	 * Crea una guia de despacho y la almacena en EFS y S3.
-	 *
-	 * @param fecha          Fecha de la guia (ej. 20211)
-	 * @param transportista  Nombre del transportista
-	 * @param nombreGuia     Nombre del archivo de la guia
-	 * @param keyParam       Clave completa opcional (modo profesor)
-	 * @param file           Archivo PDF a subir
-	 * @return Respuesta con los datos de la guia creada
-	 * @throws IOException si ocurre un error al guardar en EFS
-	 */
-	public GuiaCreadaResponse crearGuia(String fecha, String transportista, String nombreGuia, String keyParam,
-			MultipartFile file) throws IOException {
-
-		String key = resolveKey(keyParam, fecha, transportista, nombreGuia);
-		log.info("Creando guia con key: {}", key);
-
-		efsService.saveToEfs(key, file);
-		awsS3Service.upload(bucket, key, file);
-
-		return GuiaCreadaResponse.builder()
-				.key(key)
-				.fecha(extraerFecha(key, fecha))
-				.transportista(extraerTransportista(key, transportista))
-				.nombreGuia(obtenerNombreArchivo(key))
-				.mensaje("Guia creada y almacenada en EFS y S3")
-				.build();
-	}
-
-	/**
-	 * Descarga una guia de despacho desde S3.
-	 *
-	 * @param fecha          Fecha de la guia
-	 * @param transportista  Nombre del transportista
-	 * @param nombreGuia     Nombre del archivo de la guia
-	 * @param keyParam       Clave completa opcional (modo profesor)
-	 * @return Contenido del archivo en bytes
-	 */
-	public byte[] descargarGuia(String fecha, String transportista, String nombreGuia, String keyParam) {
-		String key = resolveKey(keyParam, fecha, transportista, nombreGuia);
-		return awsS3Service.downloadAsBytes(bucket, key);
-	}
-
-	/**
-	 * Actualiza una guia de despacho existente en EFS y S3.
-	 *
-	 * @param fecha          Fecha de la guia
-	 * @param transportista  Nombre del transportista
-	 * @param nombreGuia     Nombre del archivo de la guia
-	 * @param keyParam       Clave completa opcional (modo profesor)
-	 * @param file           Nuevo archivo PDF
-	 * @return Respuesta con los datos de la guia actualizada
-	 * @throws IOException si ocurre un error al guardar en EFS
-	 */
-	public GuiaCreadaResponse actualizarGuia(String fecha, String transportista, String nombreGuia, String keyParam,
-			MultipartFile file) throws IOException {
-
-		String key = resolveKey(keyParam, fecha, transportista, nombreGuia);
-		log.info("Actualizando guia con key: {}", key);
-
-		efsService.saveToEfs(key, file);
-		awsS3Service.upload(bucket, key, file);
-
-		return GuiaCreadaResponse.builder()
-				.key(key)
-				.fecha(extraerFecha(key, fecha))
-				.transportista(extraerTransportista(key, transportista))
-				.nombreGuia(obtenerNombreArchivo(key))
-				.mensaje("Guia actualizada en EFS y S3")
-				.build();
-	}
-
-	/**
-	 * Elimina una guia de despacho de S3.
-	 *
-	 * @param fecha          Fecha de la guia
-	 * @param transportista  Nombre del transportista
-	 * @param nombreGuia     Nombre del archivo de la guia
-	 * @param keyParam       Clave completa opcional (modo profesor)
-	 */
-	public void eliminarGuia(String fecha, String transportista, String nombreGuia, String keyParam) {
-		String key = resolveKey(keyParam, fecha, transportista, nombreGuia);
-		awsS3Service.deleteObject(bucket, key);
-	}
 
 	/**
 	 * Consulta guias de despacho por fecha y transportista.
 	 *
+	 * @param bucket         Nombre del bucket S3
 	 * @param fecha          Fecha de busqueda (obligatoria)
 	 * @param transportista  Nombre del transportista (opcional)
 	 * @return Lista de guias con sus metadatos
 	 */
-	public GuiaConsultaResponse consultarGuias(String fecha, String transportista) {
+	public GuiaConsultaResponse consultarGuias(String bucket, String fecha, String transportista) {
 		validarFecha(fecha);
 
 		String prefix = buildListPrefix(fecha, transportista);
@@ -204,38 +112,14 @@ public class GuiaDespachoService {
 		return fecha.trim() + "/" + transportista.trim() + "/";
 	}
 
-	private String extraerFecha(String key, String fecha) {
-		if (fecha != null && !fecha.isBlank()) {
-			return fecha.trim();
-		}
-		int slash = key.indexOf('/');
-		return slash >= 0 ? key.substring(0, slash) : key;
-	}
-
-	private String extraerTransportista(String key, String transportista) {
-		if (transportista != null && !transportista.isBlank()) {
-			return transportista.trim();
-		}
-		int first = key.indexOf('/');
-		int last = key.lastIndexOf('/');
-		if (first >= 0 && last > first) {
-			return key.substring(first + 1, last);
-		}
-		return "";
-	}
-
 	private void validarFecha(String fecha) {
 		if (fecha == null || fecha.isBlank()) {
 			throw new InvalidFileException("La fecha es obligatoria");
 		}
 	}
 
-	private void validarParametrosConsulta(String fecha, String transportista) {
-		validarFecha(fecha);
-	}
-
 	private void validarParametros(String fecha, String transportista, String nombreGuia) {
-		validarParametrosConsulta(fecha, transportista);
+		validarFecha(fecha);
 		if (transportista == null || transportista.isBlank()) {
 			throw new InvalidFileException("El transportista es obligatorio");
 		}

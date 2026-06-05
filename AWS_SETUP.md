@@ -158,13 +158,13 @@ Configurar en el repositorio → Settings → Secrets:
 ## Arquitectura del codigo (referencia)
 
 ```
-GuiaDespachoController
-    └── GuiaDespachoService (keys fecha/transportista, bucket desde application.properties)
-            ├── EfsService.saveToEfs()
-            └── AwsS3Service (listObjects, upload, downloadAsBytes, deleteObject, moveObject)
+AwsS3Controller (/s3/{bucket}/...)
+    ├── AwsS3Service (igual al profesor)
+    ├── EfsService (igual al profesor)
+    └── GuiaDespachoService (resolveKey, consultarGuias por fecha/transportista)
 ```
 
-El bucket S3 se pasa internamente desde `AWS_S3_BUCKET`; no va en la URL de los endpoints (a diferencia del ejemplo del profesor que usa `/{bucket}/` en la ruta).
+El bucket va en la URL como path variable `/{bucket}/`, igual que el proyecto del profesor.
 
 ## Checklist antes de grabar el video
 

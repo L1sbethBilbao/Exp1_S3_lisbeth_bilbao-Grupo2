@@ -44,7 +44,7 @@ Repositorio Git: `https://github.com/L1sbethBilbao/Exp1_S3_lisbeth_bilbao-Grupo2
 
 ```
 src/main/java/com/duoc/empresa_transportista_efs/
-├── controller/GuiaDespachoController.java
+├── controller/AwsS3Controller.java
 ├── service/
 │   ├── GuiaDespachoService.java   ← logica de negocio (keys, fecha/transportista)
 │   ├── AwsS3Service.java          ← igual al profesor (upload, download, delete, listObjects, moveObject)
@@ -87,15 +87,17 @@ Flujo POST: EFS primero → S3 despues.
 
 ---
 
-## Paso 4 — API REST
+## Paso 4 — API REST (igual al profesor + extensiones actividad)
 
 | Metodo | Ruta | Accion |
 |--------|------|--------|
-| POST | `/api/guias` | Crear guia (EFS + S3) |
-| GET | `/api/guias/download` | Descargar PDF |
-| PUT | `/api/guias` | Actualizar guia |
-| DELETE | `/api/guias` | Eliminar guia (solo S3) |
-| GET | `/api/guias` | Consultar por fecha y transportista |
+| GET | `/s3/{bucket}/objects` | Listar objetos (profesor) |
+| GET | `/s3/{bucket}/consulta` | Consultar por fecha/transportista (actividad) |
+| GET | `/s3/{bucket}/object` | Descargar PDF |
+| POST | `/s3/{bucket}/object` | Crear guia (EFS + S3) |
+| PUT | `/s3/{bucket}/object` | Actualizar guia (actividad) |
+| POST | `/s3/{bucket}/move` | Mover objeto (profesor) |
+| DELETE | `/s3/{bucket}/object` | Eliminar guia (solo S3) |
 
 Sin Spring Security esta semana.
 
@@ -163,7 +165,7 @@ Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para checklist completo por criteri
 | 2 | application.properties | Completado |
 | 3 | EfsService + AwsS3Service | Completado |
 | 4 | GuiaDespachoService | Completado |
-| 5 | GuiaDespachoController | Completado |
+| 5 | AwsS3Controller | Completado |
 | 6 | Excepciones globales | Completado |
 | 7 | Dockerfile | Completado |
 | 8 | GitHub Actions workflow | Completado |
