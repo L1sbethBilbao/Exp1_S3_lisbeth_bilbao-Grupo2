@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -127,6 +128,57 @@ public class GlobalExceptionHandler {
 						.error("S3 Operation Failed").message(ex.getMessage()).path(getPath(request)).build();
 
 		return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * Maneja recursos no encontrados
+	 */
+	@ExceptionHandler(ResourceNotFoundException.class)
+	public ResponseEntity<ErrorResponse> handleResourceNotFoundException(ResourceNotFoundException ex,
+			WebRequest request) {
+
+		log.error("Recurso no encontrado: {}", ex.getMessage());
+
+		ErrorResponse error = ErrorResponse.builder().timestamp(LocalDateTime.now())
+				.status(HttpStatus.NOT_FOUND.value()).error("Not Found").message(ex.getMessage())
+				.path(getPath(request)).build();
+
+		return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+	}
+
+	/**
+	 * Maneja intentos de generar una guia ya existente
+	 */
+	@ExceptionHandler(GuiaYaGeneradaException.class)
+	public ResponseEntity<ErrorResponse> handleGuiaYaGeneradaException(GuiaYaGeneradaException ex,
+			WebRequest request) {
+
+		log.error("Guia ya generada: {}", ex.getMessage());
+
+		ErrorResponse error = ErrorResponse.builder().timestamp(LocalDateTime.now())
+				.status(HttpStatus.CONFLICT.value()).error("Conflict").message(ex.getMessage())
+				.path(getPath(request)).build();
+
+		return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+	}
+
+	/**
+	 * Maneja errores de validacion en el body JSON
+	 */
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex,
+			WebRequest request) {
+
+		String detalle = ex.getBindingResult().getFieldErrors().stream()
+				.map(error -> error.getField() + ": " + error.getDefaultMessage())
+				.reduce((a, b) -> a + "; " + b)
+				.orElse("Datos invalidos");
+
+		ErrorResponse error = ErrorResponse.builder().timestamp(LocalDateTime.now())
+				.status(HttpStatus.BAD_REQUEST.value()).error("Validation Failed")
+				.message("Los datos del pedido no son validos").details(detalle).path(getPath(request)).build();
+
+		return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
 	}
 
 	/**

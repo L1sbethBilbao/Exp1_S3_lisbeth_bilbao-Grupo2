@@ -2,6 +2,7 @@ package com.duoc.empresa_transportista_efs.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,16 @@ public class EfsService {
 			parentDir.mkdirs();
 		}
 		multipartFile.transferTo(dest);
+		return dest;
+	}
+
+	public File saveBytes(String filename, byte[] content) throws IOException {
+		File dest = new File(efsPath, filename);
+		File parentDir = dest.getParentFile();
+		if (parentDir != null && !parentDir.exists()) {
+			parentDir.mkdirs();
+		}
+		Files.write(dest.toPath(), content);
 		return dest;
 	}
 }

@@ -156,6 +156,39 @@ public class AwsS3Service {
 	}
 
 	/**
+	 * Sube un archivo a S3 desde un array de bytes
+	 *
+	 * @param bucket      Nombre del bucket
+	 * @param key         Clave del objeto
+	 * @param content     Contenido del archivo
+	 * @param contentType Tipo MIME del archivo
+	 */
+	public void uploadBytes(String bucket, String key, byte[] content, String contentType) {
+		if (content == null || content.length == 0) {
+			throw new InvalidFileException("El contenido del archivo está vacío");
+		}
+
+		try {
+			log.info("Subiendo bytes: {} al bucket: {}, tamaño: {} bytes", key, bucket, content.length);
+
+			PutObjectRequest putObjectRequest = PutObjectRequest.builder().bucket(bucket).key(key)
+					.contentType(contentType).contentLength((long) content.length).build();
+
+			s3Client.putObject(putObjectRequest, RequestBody.fromBytes(content));
+
+			log.info("Archivo subido exitosamente: {}", key);
+
+		} catch (NoSuchBucketException e) {
+			throw new S3BucketNotFoundException(bucket, e);
+		} catch (S3Exception e) {
+			if (e.statusCode() == 403) {
+				throw new S3AccessDeniedException("subir archivo al bucket: " + bucket, e);
+			}
+			throw new S3UploadException("Error al subir el archivo a S3: " + e.getMessage(), e);
+		}
+	}
+
+	/**
 	 * Mueve un objeto dentro del mismo bucket (copiar + borrar)
 	 * 
 	 * @param bucket    Nombre del bucket

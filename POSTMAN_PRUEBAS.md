@@ -8,9 +8,9 @@ Reemplaza los valores de ejemplo segun tu entorno.
 
 **Importar:** Postman → Import → seleccionar el archivo JSON → editar variable `ec2_host` con tu IP.
 
-La coleccion tiene dos carpetas:
-- **Modo actividad** — `fecha`, `transportista`, `nombreGuia` (recomendado para la entrega)
-- **Modo profesor** — `key` directa (ej. `pdfs/testEFS1.pdf`)
+La coleccion tiene dos carpetas secuenciales:
+- **1. Negocio — Pedidos y Guias** — crear pedidos, generar PDF automatico (`POST /api/pedidos/{id}/generar-guia`)
+- **2. Cloud — Ordenamiento EFS + S3** — listar bucket, consultar con filtros, descargar, PUT, DELETE (como el profesor)
 
 ---
 
@@ -18,9 +18,10 @@ La coleccion tiene dos carpetas:
 
 | Fuente | Requisito | Como se cumple en este proyecto |
 |--------|-----------|----------------------------------|
-| **actividad_S3.txt** | EFS temporal | `EfsService.saveToEfs()` guarda en `/app/efs/{fecha}/{transportista}/` |
-| **actividad_S3.txt** | S3 por fecha/transportista | `AwsS3Service.upload(bucket, key, file)` con key `20250604/TransportesSur/guia001.pdf` |
-| **actividad_S3.txt** | Crear, modificar, eliminar, consultar, descargar | Endpoints en `/s3/{bucket}/` (igual al profesor) |
+| **actividad_S3.txt** | EFS temporal | `PedidoGuiaService` → `EfsService.saveBytes()` en `/app/efs/{fecha}/{transportista}/` |
+| **actividad_S3.txt** | S3 por fecha/transportista | `AwsS3Service.uploadBytes()` con key `20250604/TransportesSur/guia-PED-001.pdf` |
+| **actividad_S3.txt** | Crear guias de despacho | `POST /api/pedidos/{id}/generar-guia` genera PDF desde el pedido |
+| **actividad_S3.txt** | Modificar, eliminar, consultar, descargar | Endpoints en `/s3/{bucket}/` (igual al profesor) |
 | **actividad_S3.txt** | Sin validacion permisos descarga | No hay Spring Security (profesor: proximas clases) |
 | **actividad_S3.txt** | Docker Hub + GitHub Actions EC2 | `deploy.yml` |
 | **pauta 1** | EFS organizado | Misma key que S3; ver `ls` en EC2 y `docker exec` |
@@ -38,48 +39,101 @@ La coleccion tiene dos carpetas:
 
 ## Orden para el VIDEO (apuntes + pauta)
 
-1. **POST** — crear guia (Pauta 1 y 2)
-2. **EC2** — `df -h`, `cd /home/ec2-user/efs`, `ls`, `docker exec` (apuntes 1-7)
-3. **Consola S3** — mostrar objeto creado (apunte 11)
-4. **PUT** — modificar guia (Pauta 3, apunte 12)
-5. **Consola S3** — mostrar archivo modificado
-6. **GET download** — descargar PDF y abrirlo (Pauta 4, apunte 13)
-7. **GET consulta** — mostrar `total` con filtros (Pauta 5, apunte 14)
-8. **DELETE** — eliminar guia (apunte 11 paso 5)
-9. **Consola S3** — verificar que ya no existe
-10. **Git push** — pipeline en vivo (Pauta 6, apunte 15)
-11. **Explicar con detalle** (Pauta 7, apunte 16)
+### Carpeta 1 — Negocio
+1. **POST** crear pedido 1 → **POST** generar guia (Pauta 1 y 2; PDF generado por el sistema)
+2. **POST** crear pedido 2 → **POST** generar segunda guia (otra carpeta `20250605/TransportesNorte/`)
+3. **EC2** — `df -h`, `ls -R /home/ec2-user/efs`, `docker exec` (apuntes 1-7)
+
+### Carpeta 2 — Cloud
+4. **GET list** — mostrar las 2 keys en el bucket
+5. **GET consulta** — filtrar por fecha/transportista (`total: 1` en cada caso)
+6. **GET download** — descargar PDF y abrirlo (Pauta 4)
+7. **PUT** — modificar guia (Pauta 3)
+8. **DELETE** — eliminar segunda guia
+9. **Consola S3** — verificar cambios
+10. **Git push** — pipeline en vivo (Pauta 6)
+11. **Explicar con detalle** (Pauta 7)
 
 ---
 
-## 1. Crear guia (POST) — Pauta 1 y 2
+## 1. Crear pedido y generar guia — Pauta 1 y 2
+
+**Paso A — Crear pedido:**
 
 ```
-POST http://<IP>:8080/s3/<BUCKET>/object
-Content-Type: multipart/form-data
+POST http://<IP>:8080/api/pedidos
+Content-Type: application/json
 ```
 
-| Campo | Tipo | Valor ejemplo |
-|-------|------|---------------|
-| file | File | guia001.pdf |
-| fecha | Text | 20250604 |
-| transportista | Text | TransportesSur |
-| nombreGuia | Text | guia001 |
+```json
+{
+  "cliente": "Maria Lopez",
+  "direccion": "Av. Libertad 123, Santiago",
+  "descripcion": "Caja mediana fragil",
+  "transportista": "TransportesSur",
+  "fecha": "20250604"
+}
+```
 
-**Respuesta esperada:** `201 Created` (sin body, igual al profesor)
+**Respuesta:** `201 Created` con `id: "PED-001"`.
+
+**Paso B — Generar guia (sin subir PDF manual):**
+
+```
+POST http://<IP>:8080/api/pedidos/PED-001/generar-guia
+```
+
+**Respuesta:**
+
+```json
+{
+  "key": "20250604/TransportesSur/guia-PED-001.pdf",
+  "fecha": "20250604",
+  "transportista": "TransportesSur",
+  "nombreGuia": "guia-PED-001.pdf",
+  "mensaje": "Guia generada y almacenada en EFS y S3"
+}
+```
 
 **Verificar en EC2:**
 
 ```bash
-ls /home/ec2-user/efs/20250604/TransportesSur/
-# Debe aparecer guia001.pdf
+ls -R /home/ec2-user/efs/
+# 20250604/TransportesSur/guia-PED-001.pdf
 ```
 
-**Verificar en consola AWS S3:** objeto con key `20250604/TransportesSur/guia001.pdf`
+**Verificar en consola AWS S3:** objeto con key `20250604/TransportesSur/guia-PED-001.pdf`
 
 ---
 
-## 2. Consultar guias (GET) — Pauta 5
+## 2. Listar todo el bucket (GET) — Carpeta 2, paso 1
+
+```
+GET http://<IP>:8080/s3/<BUCKET>/objects
+```
+
+**Respuesta esperada:** array con **todas** las keys del bucket (sin filtros):
+
+```json
+[
+  {
+    "key": "20250604/TransportesSur/guia-PED-001.pdf",
+    "size": 1234,
+    "lastModified": "..."
+  },
+  {
+    "key": "20250605/TransportesNorte/guia-PED-002.pdf",
+    "size": 1180,
+    "lastModified": "..."
+  }
+]
+```
+
+Diferencia con consulta: **list** = inventario completo; **consulta** = filtrado por fecha/transportista con campo `total`.
+
+---
+
+## 3. Consultar guias (GET) — Pauta 5
 
 ```
 GET http://<IP>:8080/s3/<BUCKET>/consulta?fecha=20250604&transportista=TransportesSur
@@ -94,22 +148,24 @@ GET http://<IP>:8080/s3/<BUCKET>/consulta?fecha=20250604&transportista=Transport
   "transportista": "TransportesSur",
   "guias": [
     {
-      "key": "20250604/TransportesSur/guia001.pdf",
-      "size": 12345,
+      "key": "20250604/TransportesSur/guia-PED-001.pdf",
+      "size": 1234,
       "lastModified": "..."
     }
   ]
 }
 ```
 
-Importante: esto **cuenta y lista** archivos. No confundir con descargar.
+Con `fecha=20250605&transportista=TransportesNorte` solo aparece la segunda guia (`total: 1`).
+
+Importante: esto **cuenta y lista metadatos**. No descarga el PDF.
 
 ---
 
-## 3. Descargar guia (GET) — Pauta 4
+## 4. Descargar guia (GET) — Pauta 4
 
 ```
-GET http://<IP>:8080/s3/<BUCKET>/object?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001
+GET http://<IP>:8080/s3/<BUCKET>/object?fecha=20250604&transportista=TransportesSur&nombreGuia=guia-PED-001
 ```
 
 **Respuesta esperada:** archivo PDF binario (Save Response → guardar y abrir el PDF).
@@ -118,29 +174,34 @@ No basta con listar; debes **obtener el contenido** del archivo.
 
 ---
 
-## 4. Modificar guia (PUT) — Pauta 3
+## 5. Modificar guia (PUT) — Pauta 3
 
 ```
 PUT http://<IP>:8080/s3/<BUCKET>/object
 Content-Type: multipart/form-data
 ```
 
-Mismos campos que POST, pero con un PDF **diferente** (contenido modificado).
+| Campo | Valor ejemplo |
+|-------|---------------|
+| file | PDF (puedes usar el descargado en paso 4) |
+| fecha | 20250604 |
+| transportista | TransportesSur |
+| nombreGuia | guia-PED-001 |
 
 **Verificar:** en consola S3, el archivo mantiene la misma key pero cambia tamano/fecha de modificacion.
 
 ---
 
-## 5. Eliminar guia (DELETE)
+## 6. Eliminar guia (DELETE)
 
 ```
-DELETE http://<IP>:8080/s3/<BUCKET>/object?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001
+DELETE http://<IP>:8080/s3/<BUCKET>/object?fecha=20250605&transportista=TransportesNorte&nombreGuia=guia-PED-002
 ```
 
-Tambien funciona con `key` directa (modo profesor):
+Tambien funciona con `key` directa:
 
 ```
-DELETE http://<IP>:8080/s3/<BUCKET>/object?key=pdfs/testEFS1.pdf
+DELETE http://<IP>:8080/s3/<BUCKET>/object?key=20250605/TransportesNorte/guia-PED-002.pdf
 ```
 
 **Respuesta esperada:** `204 No Content`
@@ -151,29 +212,27 @@ DELETE http://<IP>:8080/s3/<BUCKET>/object?key=pdfs/testEFS1.pdf
 
 ---
 
-## 6. Demostracion EFS en video — Pauta 1 maximo (apuntes clase)
+## 7. Demostracion EFS en video — Pauta 1 maximo (apuntes clase)
 
-En EC2, ejecutar en este orden (equivalente a apuntes `cd pdfs/` pero con tu key `fecha/transportista`):
+En EC2, tras generar las 2 guias (carpeta 1):
 
 ```bash
 df -h
-ls
-cd /home/ec2-user/efs
-ls
-cd 20250604/TransportesSur/
-ls
+ls -R /home/ec2-user/efs/
+# Esperado:
+# 20250604/TransportesSur/guia-PED-001.pdf
+# 20250605/TransportesNorte/guia-PED-002.pdf
 
 sudo docker exec -it empresa-transportista-efs bash
-df -h
-ls /app/efs/20250604/TransportesSur/
+ls -R /app/efs/
 exit
 ```
 
-Explicar la cadena (apuntes): micro escribe en `/app/efs` → Docker mapea a `/home/ec2-user/efs` en Linux → Linux escribe en Amazon EFS.
+Explicar la cadena (apuntes): micro escribe en `/app/efs` → Docker mapea a `/home/ec2-user/efs` en Linux → Linux escribe en Amazon EFS. Misma organizacion que las keys en S3.
 
 ---
 
-## 7. Pipeline CI/CD en vivo — Pauta 6
+## 8. Pipeline CI/CD en vivo — Pauta 6
 
 1. Hacer un cambio menor (ej. comentario en README)
 2. `git add . && git commit -m "trigger deploy" && git push origin main`
@@ -182,19 +241,19 @@ Explicar la cadena (apuntes): micro escribe en `/app/efs` → Docker mapea a `/h
 
 ---
 
-## 8. Guion del video — Pauta 7
+## 9. Guion del video — Pauta 7
 
 Orden sugerido:
 
-1. Presentar el caso (empresa transportista, guias de despacho)
-2. Mostrar arquitectura: EC2 + Docker + EFS + S3 + GitHub Actions
-3. Crear guia con Postman
-4. Mostrar EFS en EC2 y dentro del contenedor
-5. Mostrar objeto en S3
-6. Consultar historial con filtros
+1. Presentar el caso (empresa transportista, pedidos y guias de despacho)
+2. Mostrar arquitectura: dos capas (negocio + cloud), EC2 + Docker + EFS + S3 + GitHub Actions
+3. **Carpeta 1:** crear pedidos y generar guias (PDF automatico, sin subir archivo)
+4. Mostrar EFS en EC2 (`ls -R`) — dos carpetas fecha/transportista
+5. Mostrar objetos en consola S3 (mismas keys)
+6. **Carpeta 2:** listar bucket completo vs consulta con filtros
 7. Descargar PDF y abrirlo
-8. Modificar guia y ver cambio en S3
-9. Eliminar guia y verificar en S3
+8. Modificar guia (PUT) y ver cambio en S3
+9. Eliminar segunda guia y verificar en S3
 10. Push a main y pipeline en vivo
 11. Explicar **por que** funciona cada parte (no solo mostrar pantallas)
 
@@ -205,17 +264,19 @@ Orden sugerido:
 Todas las pruebas se hacen contra la instancia desplegada:
 
 ```
-http://<IP-ELASTICA-EC2>:8080/s3/<BUCKET>/
+http://<IP-ELASTICA-EC2>:8080/api/pedidos      ← negocio
+http://<IP-ELASTICA-EC2>:8080/s3/<BUCKET>/     ← cloud
 ```
 
 Orden recomendado:
 
 1. Seguir [AWS_SETUP.md](AWS_SETUP.md) (S3, EFS, EC2, IAM, Docker)
-2. Desplegar el contenedor con volumen EFS montado
-3. Probar cada endpoint con Postman usando la IP elástica
-4. Verificar EFS en la consola SSH (`ls /home/ec2-user/efs`, `docker exec`, `df -h`)
-5. Verificar objetos en la consola AWS S3
-6. Grabar el video con ese flujo en vivo
+2. Desplegar el contenedor con volumen EFS montado (push a `main` o manual)
+3. Ejecutar **Carpeta 1** de Postman completa
+4. Ejecutar **Carpeta 2** de Postman completa
+5. Verificar EFS en SSH (`ls -R /home/ec2-user/efs`, `docker exec`, `df -h`)
+6. Verificar objetos en la consola AWS S3
+7. Grabar el video con ese flujo en vivo
 
 ---
 
@@ -225,9 +286,13 @@ Orden recomendado:
 |----------|---------------|-----|
 | `ec2_host` | `52.45.88.121` | IP elastica de EC2 |
 | `bucket` | `tu-bucket-guias` | Nombre del bucket S3 (igual que `AWS_S3_BUCKET`) |
-| `fecha` | `20250604` | Modo actividad |
-| `transportista` | `TransportesSur` | Modo actividad |
-| `nombreGuia` | `guia001` | Modo actividad (sin .pdf) |
-| `s3_key` | `pdfs/testEFS1.pdf` | Modo profesor |
+| `pedido_id_1` | `PED-001` | Se guarda al crear pedido 1 |
+| `pedido_id_2` | `PED-002` | Se guarda al crear pedido 2 |
+| `fecha` | `20250604` | Pedido 1 / consulta cloud |
+| `transportista` | `TransportesSur` | Pedido 1 |
+| `nombreGuia` | `guia-PED-001` | Sin .pdf |
+| `fecha2` | `20250605` | Pedido 2 |
+| `transportista2` | `TransportesNorte` | Pedido 2 |
+| `nombreGuia2` | `guia-PED-002` | Sin .pdf |
 
 El bucket va en la URL como `{bucket}` (igual al profesor). Debe coincidir con `AWS_S3_BUCKET` en EC2.

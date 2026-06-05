@@ -1,18 +1,22 @@
 # Plan de construccion: Microservicio empresa-transportista-efs (Semana 3)
 
-> **Estado:** Implementacion base completada. Pendiente: configurar AWS, secrets de GitHub, pruebas en EC2 y grabacion del video.
+> **Estado:** Capa de negocio + capa cloud completadas. Pendiente: push/deploy, pruebas en EC2 y grabacion del video.
 
 Documentos relacionados:
 - [AWS_SETUP.md](AWS_SETUP.md) — Infraestructura cloud paso a paso
 - [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) — Pruebas y guion del video
+- [HELP.md](HELP.md) — Resumen rapido del proyecto
 
 ---
 
 ## Contexto
 
-Microservicio Spring Boot que gestiona guias PDF usando **EFS** (temporal) + **S3** (persistente), desplegado en **EC2** via **Docker** y **GitHub Actions**.
+Microservicio Spring Boot para **gestion de pedidos** y **generacion automatica de guias PDF**, usando **EFS** (temporal) + **S3** (persistente), desplegado en **EC2** via **Docker** y **GitHub Actions**.
 
-Referencia del profesor: `ms-administracion-archivos` — misma capa de infraestructura (`AwsS3Service` + `EfsService`), adaptada al dominio transportista con keys `{fecha}/{transportista}/{guia}.pdf`.
+- **Capa negocio:** pedidos en memoria + PDF generado por el sistema (patron S2 `ResumenArchivoService`)
+- **Capa cloud:** igual al profesor (`AwsS3Controller`, `AwsS3Service`, `EfsService`)
+
+Referencia del profesor: `ms-administracion-archivos` — misma capa S3/EFS, adaptada al dominio transportista con keys `{fecha}/{transportista}/guia-{id}.pdf`.
 
 Repositorio Git: `https://github.com/L1sbethBilbao/Exp1_S3_lisbeth_bilbao-Grupo2.git`
 
@@ -34,7 +38,10 @@ Repositorio Git: `https://github.com/L1sbethBilbao/Exp1_S3_lisbeth_bilbao-Grupo2
 
 **Dependencias Initializr:** Spring Web, Lombok.
 
-**Agregar manualmente en pom.xml:** `spring-cloud-aws-starter-s3` + BOM 3.3.1.
+**Agregar manualmente en pom.xml:**
+- `spring-cloud-aws-starter-s3` + BOM 3.3.1
+- `spring-boot-starter-validation`
+- `openpdf` 2.0.3 (generacion de PDF)
 
 **No usar:** JPA, Security, Actuator.
 
@@ -44,19 +51,25 @@ Repositorio Git: `https://github.com/L1sbethBilbao/Exp1_S3_lisbeth_bilbao-Grupo2
 
 ```
 src/main/java/com/duoc/empresa_transportista_efs/
-├── controller/AwsS3Controller.java
+├── controller/
+│   ├── PedidoController.java          ← CRUD pedidos + generar-guia
+│   └── AwsS3Controller.java           ← capa cloud (igual al profesor)
+├── model/
+│   └── Pedido.java
 ├── service/
-│   ├── GuiaDespachoService.java   ← logica de negocio (keys, fecha/transportista)
-│   ├── AwsS3Service.java          ← igual al profesor (upload, download, delete, listObjects, moveObject)
-│   └── EfsService.java            ← igual al profesor (saveToEfs)
+│   ├── PedidoService.java             ← pedidos en memoria
+│   ├── PedidoGuiaService.java         ← orquesta PDF → EFS → S3
+│   ├── GuiaGeneradorService.java      ← genera PDF con OpenPDF
+│   ├── GuiaDespachoService.java       ← keys y consulta por prefijo
+│   ├── AwsS3Service.java              ← upload, uploadBytes, download, delete, list, move
+│   └── EfsService.java                ← saveToEfs, saveBytes
 ├── dto/
-│   ├── GuiaConsultaResponse.java
-│   ├── GuiaCreadaResponse.java
-│   ├── GuiaMetadataDto.java
-│   ├── S3ObjectDto.java
-│   └── ErrorResponse.java
+│   ├── PedidoRequest.java / PedidoResponse.java
+│   ├── GuiaConsultaResponse.java / GuiaCreadaResponse.java
+│   ├── GuiaMetadataDto.java / S3ObjectDto.java / ErrorResponse.java
 └── exception/
     ├── GlobalExceptionHandler.java
+    ├── ResourceNotFoundException.java / GuiaYaGeneradaException.java
     └── S3*Exception.java, InvalidFileException.java
 ```
 
@@ -78,25 +91,42 @@ Perfil local: no aplica — las pruebas se realizan directamente en EC2 con Post
 ## Paso 3 — Regla de negocio: key S3/EFS
 
 ```text
-{fecha}/{transportista}/{nombreGuia}.pdf
+{fecha}/{transportista}/guia-{pedidoId}.pdf
 ```
 
-Ejemplo: `20250604/TransportesSur/guia001.pdf`
+Ejemplos:
+- `20250604/TransportesSur/guia-PED-001.pdf`
+- `20250605/TransportesNorte/guia-PED-002.pdf`
 
-Flujo POST: EFS primero → S3 despues.
+Flujo `generar-guia`: generar PDF → EFS → S3.
 
 ---
 
-## Paso 4 — API REST (igual al profesor + extensiones actividad)
+## Paso 4 — API REST
+
+### Capa negocio (`/api/pedidos`)
 
 | Metodo | Ruta | Accion |
 |--------|------|--------|
-| GET | `/s3/{bucket}/objects` | Listar objetos (profesor) |
-| GET | `/s3/{bucket}/consulta` | Consultar por fecha/transportista (actividad) |
+| POST | `/api/pedidos` | Crear pedido |
+| GET | `/api/pedidos` | Listar pedidos |
+| GET | `/api/pedidos/{id}` | Obtener pedido |
+| PUT | `/api/pedidos/{id}` | Actualizar pedido |
+| DELETE | `/api/pedidos/{id}` | Eliminar pedido |
+| POST | `/api/pedidos/{id}/generar-guia` | Generar PDF y guardar en EFS + S3 |
+
+Campos del pedido: `cliente`, `direccion`, `descripcion`, `transportista`, `fecha`.
+
+### Capa cloud (`/s3/{bucket}` — igual al profesor)
+
+| Metodo | Ruta | Accion |
+|--------|------|--------|
+| GET | `/s3/{bucket}/objects` | Listar todos los objetos del bucket |
+| GET | `/s3/{bucket}/consulta` | Consultar por fecha/transportista |
 | GET | `/s3/{bucket}/object` | Descargar PDF |
-| POST | `/s3/{bucket}/object` | Crear guia (EFS + S3) |
-| PUT | `/s3/{bucket}/object` | Actualizar guia (actividad) |
-| POST | `/s3/{bucket}/move` | Mover objeto (profesor) |
+| POST | `/s3/{bucket}/object` | Subir guia manual (EFS + S3) |
+| PUT | `/s3/{bucket}/object` | Actualizar guia |
+| POST | `/s3/{bucket}/move` | Mover objeto |
 | DELETE | `/s3/{bucket}/object` | Eliminar guia (solo S3) |
 
 Sin Spring Security esta semana.
@@ -105,9 +135,14 @@ Sin Spring Security esta semana.
 
 ## Paso 5 — Servicios
 
-- **EfsService:** `saveToEfs(filename, file)` — igual al profesor
-- **AwsS3Service:** `listObjects`, `downloadAsBytes`, `upload`, `moveObject`, `deleteObject` — igual al profesor (bucket como parametro)
-- **GuiaDespachoService:** orquesta EFS + S3, construye keys, filtra consultas por prefijo `fecha/transportista/`. El bucket se lee de `aws.s3.bucket` en `application.properties`
+| Servicio | Responsabilidad |
+|----------|-----------------|
+| **PedidoService** | CRUD en `ConcurrentHashMap`; IDs `PED-001`, `PED-002`, ... |
+| **GuiaGeneradorService** | Crea PDF simple con datos del pedido (OpenPDF) |
+| **PedidoGuiaService** | `generarGuia(id)` → PDF → `EfsService.saveBytes` → `AwsS3Service.uploadBytes` |
+| **GuiaDespachoService** | `buildKey`, `resolveKey`, `consultarGuias` por prefijo |
+| **EfsService** | `saveToEfs` (multipart) y `saveBytes` (PDF generado) |
+| **AwsS3Service** | Operaciones S3; bucket como parametro en URL |
 
 ---
 
@@ -137,6 +172,16 @@ Cadena EFS para el video:
 Microservicio → /app/efs → EC2 /home/ec2-user/efs → Amazon EFS
 ```
 
+Estructura esperada tras generar 2 guias:
+
+```
+/home/ec2-user/efs/
+├── 20250604/TransportesSur/guia-PED-001.pdf
+└── 20250605/TransportesNorte/guia-PED-002.pdf
+```
+
+En S3: mismas keys (sin carpetas fisicas; la consola las muestra como prefijos).
+
 ---
 
 ## Paso 8 — CI/CD
@@ -153,6 +198,10 @@ Secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `EC2_HOST`, `USER_SERVER`, `EC
 
 Coleccion Postman: `postman/Pruebas-Semana3.postman_collection.json`
 
+Dos carpetas secuenciales:
+1. **Negocio** — pedidos + generar guia (sin subir PDF manual)
+2. **Cloud** — listar bucket, consultar, descargar, PUT, DELETE
+
 Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para checklist completo por criterio de pauta.
 
 ---
@@ -164,12 +213,12 @@ Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para checklist completo por criteri
 | 1 | Corregir pom.xml | Completado |
 | 2 | application.properties | Completado |
 | 3 | EfsService + AwsS3Service | Completado |
-| 4 | GuiaDespachoService | Completado |
-| 5 | AwsS3Controller | Completado |
-| 6 | Excepciones globales | Completado |
-| 7 | Dockerfile | Completado |
-| 8 | GitHub Actions workflow | Completado |
-| 9 | AWS (S3, EFS, EC2, IAM) | Pendiente — manual |
+| 4 | GuiaDespachoService + AwsS3Controller | Completado |
+| 5 | Excepciones globales | Completado |
+| 6 | Capa negocio (Pedido, PDF, generar-guia) | Completado |
+| 7 | Postman 2 carpetas + docs | Completado |
+| 8 | Dockerfile + GitHub Actions | Completado |
+| 9 | AWS (S3, EFS, EC2, IAM) | Manual — en EC2 |
 | 10 | Pruebas Postman en EC2 | Pendiente |
 | 11 | Video demostracion | Pendiente |
 
@@ -177,7 +226,7 @@ Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para checklist completo por criteri
 
 ## Que NO implementar
 
-- Base de datos
+- Base de datos (pedidos en memoria)
 - Spring Security / permisos
 - Microservicios adicionales
 - Frontend

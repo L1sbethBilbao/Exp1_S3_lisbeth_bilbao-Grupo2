@@ -128,7 +128,12 @@ Importar en Postman:
 postman/Pruebas-Semana3.postman_collection.json
 ```
 
-Editar la variable `ec2_host` con la IP elastica de tu EC2. Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para el flujo completo de pruebas.
+Editar variables `ec2_host` y `bucket`. Ejecutar en orden:
+
+1. **Carpeta 1 — Negocio:** crear pedidos y generar guias (PDF automatico)
+2. **Carpeta 2 — Cloud:** listar bucket, consultar, descargar, PUT, DELETE
+
+Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para el flujo completo y el guion del video.
 
 ## 9. Secrets de GitHub Actions
 
@@ -158,18 +163,32 @@ Configurar en el repositorio → Settings → Secrets:
 ## Arquitectura del codigo (referencia)
 
 ```
+PedidoController (/api/pedidos)
+    └── PedidoGuiaService
+            ├── GuiaGeneradorService  (PDF OpenPDF)
+            ├── EfsService.saveBytes
+            └── AwsS3Service.uploadBytes
+
 AwsS3Controller (/s3/{bucket}/...)
     ├── AwsS3Service (igual al profesor)
     ├── EfsService (igual al profesor)
-    └── GuiaDespachoService (resolveKey, consultarGuias por fecha/transportista)
+    └── GuiaDespachoService (resolveKey, consultarGuias)
 ```
 
 El bucket va en la URL como path variable `/{bucket}/`, igual que el proyecto del profesor.
+
+Tras generar 2 guias (Postman carpeta 1), la estructura en EFS y S3 es:
+
+```
+20250604/TransportesSur/guia-PED-001.pdf
+20250605/TransportesNorte/guia-PED-002.pdf
+```
 
 ## Checklist antes de grabar el video
 
 - [ ] EFS montado en `/home/ec2-user/efs` (`df -h` lo muestra)
 - [ ] Contenedor corriendo en puerto 8080
 - [ ] Bucket S3 creado y accesible desde EC2
-- [ ] POST desde Postman crea archivo en EFS y S3
+- [ ] `POST /api/pedidos` + `POST .../generar-guia` crea PDF en EFS y S3
+- [ ] `GET /s3/{bucket}/objects` muestra las keys ordenadas por fecha/transportista
 - [ ] GitHub Actions despliega al hacer push a `main`
