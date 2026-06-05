@@ -4,7 +4,13 @@ Base URL: `http://<IP-ELASTICA-EC2>:8080`
 
 Reemplaza los valores de ejemplo segun tu entorno.
 
-**Coleccion Postman:** `postman/Empresa-Transportista-EFS.postman_collection.json`
+**Coleccion Postman:** `postman/Pruebas-Semana3.postman_collection.json`
+
+**Importar:** Postman → Import → seleccionar el archivo JSON → editar variable `ec2_host` con tu IP.
+
+La coleccion tiene dos carpetas:
+- **Modo actividad** — `fecha`, `transportista`, `nombreGuia` (recomendado para la entrega)
+- **Modo profesor** — `key` directa (ej. `pdfs/testEFS1.pdf`)
 
 ---
 
@@ -12,8 +18,8 @@ Reemplaza los valores de ejemplo segun tu entorno.
 
 | Fuente | Requisito | Como se cumple en este proyecto |
 |--------|-----------|----------------------------------|
-| **actividad_S3.txt** | EFS temporal | `EfsService` guarda en `/app/efs/{fecha}/{transportista}/` |
-| **actividad_S3.txt** | S3 por fecha/transportista | Key: `20250604/TransportesSur/guia001.pdf` |
+| **actividad_S3.txt** | EFS temporal | `EfsService.saveToEfs()` guarda en `/app/efs/{fecha}/{transportista}/` |
+| **actividad_S3.txt** | S3 por fecha/transportista | `AwsS3Service.upload(bucket, key, file)` con key `20250604/TransportesSur/guia001.pdf` |
 | **actividad_S3.txt** | Crear, modificar, eliminar, consultar, descargar | 5 endpoints en `/api/guias` |
 | **actividad_S3.txt** | Sin validacion permisos descarga | No hay Spring Security (profesor: proximas clases) |
 | **actividad_S3.txt** | Docker Hub + GitHub Actions EC2 | `deploy.yml` |
@@ -21,7 +27,7 @@ Reemplaza los valores de ejemplo segun tu entorno.
 | **pauta 2** | S3 automatico ordenado | POST sube a bucket con prefijo fecha/transportista |
 | **pauta 3** | Modificar en S3 | PUT actualiza mismo objeto |
 | **pauta 4** | Descargar contenido | `GET /api/guias/download` devuelve bytes del PDF |
-| **pauta 5** | Consultar con filtros | `GET /api/guias?fecha=&transportista=` devuelve `total` |
+| **pauta 5** | Consultar con filtros | `GET /api/guias?fecha=&transportista=` usa `AwsS3Service.listObjects()` y filtra por prefijo |
 | **pauta 6** | Pipeline CI/CD | Push a `main` dispara workflow |
 | **pauta 7** | Video explicativo | Guion abajo + apuntes comandos EC2 |
 | **apuntes** | `df -h`, `ls`, `docker exec` | Seccion 6 — carpeta `20250604/TransportesSur/` (no `pdfs/` del demo del profesor) |
@@ -135,13 +141,21 @@ Mismos campos que POST, pero con un PDF **diferente** (contenido modificado).
 
 ---
 
-## 5. Eliminar guia (DELETE) — Pauta 2
+## 5. Eliminar guia (DELETE)
 
 ```
 DELETE http://<IP>:8080/api/guias?fecha=20250604&transportista=TransportesSur&nombreGuia=guia001
 ```
 
+Tambien funciona con `key` directa (modo profesor):
+
+```
+DELETE http://<IP>:8080/api/guias?key=pdfs/testEFS1.pdf
+```
+
 **Respuesta esperada:** `204 No Content`
+
+**Nota:** elimina solo de **S3** (igual que el profesor). El archivo puede seguir en EFS.
 
 **Verificar:** el objeto ya no aparece en la consola S3.
 
@@ -212,3 +226,17 @@ Orden recomendado:
 4. Verificar EFS en la consola SSH (`ls /home/ec2-user/efs`, `docker exec`, `df -h`)
 5. Verificar objetos en la consola AWS S3
 6. Grabar el video con ese flujo en vivo
+
+---
+
+## Variables de la coleccion Postman
+
+| Variable | Valor ejemplo | Uso |
+|----------|---------------|-----|
+| `ec2_host` | `52.45.88.121` | IP elastica de EC2 |
+| `fecha` | `20250604` | Modo actividad |
+| `transportista` | `TransportesSur` | Modo actividad |
+| `nombreGuia` | `guia001` | Modo actividad (sin .pdf) |
+| `s3_key` | `pdfs/testEFS1.pdf` | Modo profesor |
+
+El bucket S3 **no** va en la URL; se configura en `aws.s3.bucket` / variable de entorno `AWS_S3_BUCKET`.

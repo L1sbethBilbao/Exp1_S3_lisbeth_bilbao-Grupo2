@@ -12,7 +12,7 @@ Documentos relacionados:
 
 Microservicio Spring Boot que gestiona guias PDF usando **EFS** (temporal) + **S3** (persistente), desplegado en **EC2** via **Docker** y **GitHub Actions**.
 
-Referencia del profesor: `ms-administracion-archivos` — misma arquitectura (Controller → EfsService + S3Service), adaptada al dominio transportista con keys `{fecha}/{transportista}/{guia}.pdf`.
+Referencia del profesor: `ms-administracion-archivos` — misma capa de infraestructura (`AwsS3Service` + `EfsService`), adaptada al dominio transportista con keys `{fecha}/{transportista}/{guia}.pdf`.
 
 Repositorio Git: `https://github.com/L1sbethBilbao/Exp1_S3_lisbeth_bilbao-Grupo2.git`
 
@@ -46,13 +46,14 @@ Repositorio Git: `https://github.com/L1sbethBilbao/Exp1_S3_lisbeth_bilbao-Grupo2
 src/main/java/com/duoc/empresa_transportista_efs/
 ├── controller/GuiaDespachoController.java
 ├── service/
-│   ├── GuiaDespachoService.java
-│   ├── EfsService.java
-│   └── S3Service.java
+│   ├── GuiaDespachoService.java   ← logica de negocio (keys, fecha/transportista)
+│   ├── AwsS3Service.java          ← igual al profesor (upload, download, delete, listObjects, moveObject)
+│   └── EfsService.java            ← igual al profesor (saveToEfs)
 ├── dto/
 │   ├── GuiaConsultaResponse.java
 │   ├── GuiaCreadaResponse.java
 │   ├── GuiaMetadataDto.java
+│   ├── S3ObjectDto.java
 │   └── ErrorResponse.java
 └── exception/
     ├── GlobalExceptionHandler.java
@@ -93,7 +94,7 @@ Flujo POST: EFS primero → S3 despues.
 | POST | `/api/guias` | Crear guia (EFS + S3) |
 | GET | `/api/guias/download` | Descargar PDF |
 | PUT | `/api/guias` | Actualizar guia |
-| DELETE | `/api/guias` | Eliminar guia |
+| DELETE | `/api/guias` | Eliminar guia (solo S3) |
 | GET | `/api/guias` | Consultar por fecha y transportista |
 
 Sin Spring Security esta semana.
@@ -102,9 +103,9 @@ Sin Spring Security esta semana.
 
 ## Paso 5 — Servicios
 
-- **EfsService:** escribe/elimina en `efs.path`
-- **S3Service:** upload, download, delete, listByPrefix
-- **GuiaDespachoService:** orquesta logica de negocio y buildKey
+- **EfsService:** `saveToEfs(filename, file)` — igual al profesor
+- **AwsS3Service:** `listObjects`, `downloadAsBytes`, `upload`, `moveObject`, `deleteObject` — igual al profesor (bucket como parametro)
+- **GuiaDespachoService:** orquesta EFS + S3, construye keys, filtra consultas por prefijo `fecha/transportista/`. El bucket se lee de `aws.s3.bucket` en `application.properties`
 
 ---
 
@@ -115,8 +116,10 @@ Multi-stage con Java 21. JAR: `empresa-transportista-efs-1.0.0.jar`. Carpeta `/a
 ```bash
 docker run -d --name empresa-transportista-efs \
   -p 8080:8080 \
-  -v /mnt/efs:/app/efs \
+  -v /home/ec2-user/efs:/app/efs \
+  -e EFS_PATH=/app/efs \
   -e AWS_S3_BUCKET=tu-bucket \
+  -e AWS_REGION=us-east-1 \
   TU_USUARIO/empresa-transportista-efs:latest
 ```
 
@@ -129,7 +132,7 @@ Ver [AWS_SETUP.md](AWS_SETUP.md).
 Cadena EFS para el video:
 
 ```
-Microservicio → /app/efs → EC2 /mnt/efs → Amazon EFS
+Microservicio → /app/efs → EC2 /home/ec2-user/efs → Amazon EFS
 ```
 
 ---
@@ -140,11 +143,13 @@ Workflow: `.github/workflows/deploy.yml`
 
 Push a `main` → Maven build → Docker Hub → SSH deploy EC2.
 
-Secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`, `AWS_REGION`, `AWS_S3_BUCKET`.
+Secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `EC2_HOST`, `USER_SERVER`, `EC2_SSH_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_S3_BUCKET`, `EFS_MOUNT_PATH`, `EFS_PATH`.
 
 ---
 
 ## Paso 9 — Pruebas y video
+
+Coleccion Postman: `postman/Pruebas-Semana3.postman_collection.json`
 
 Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para checklist completo por criterio de pauta.
 
@@ -156,7 +161,7 @@ Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para checklist completo por criteri
 |---|-------|--------|
 | 1 | Corregir pom.xml | Completado |
 | 2 | application.properties | Completado |
-| 3 | EfsService + S3Service | Completado |
+| 3 | EfsService + AwsS3Service | Completado |
 | 4 | GuiaDespachoService | Completado |
 | 5 | GuiaDespachoController | Completado |
 | 6 | Excepciones globales | Completado |

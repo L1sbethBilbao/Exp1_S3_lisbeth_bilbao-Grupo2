@@ -1,152 +1,513 @@
 {
   "info": {
     "_postman_id": "semana3-transportista-2026",
-    "name": "Semana 3 — Pruebas Transportista (como profesor)",
-    "description": "# Lista secuencial (actividad + pauta + apuntes)\n\nIgual que en clase del profesor: **key = pdfs/testEFS1.pdf**\n\nEn EC2 veras la carpeta **pdfs/** con **testEFS1.pdf** dentro.\n\n---\n\n## PASO 1 — POST (Postman)\n- file: selecciona un PDF\n- key: `pdfs/testEFS1.pdf`\n\n## PASO 2 — EFS en EC2 (SSH, apuntes)\n```bash\ndf -h\ncd /home/ec2-user/efs\nls\ncd pdfs/\nls\nsudo docker exec -it empresa-transportista-efs bash\nls /app/efs/pdfs/\nexit\n```\n\n## PASO 3 — PUT modificar (Postman)\n- file: otro PDF\n- key: `pdfs/testEFS1.pdf`\n\n## PASO 4 — GET descargar (Postman)\n- key: `pdfs/testEFS1.pdf`\n\n## PASO 5 — GET consultar historial (Postman)\n- fecha: `pdfs` (lista todo bajo pdfs/)\n\n## PASO 6 — DELETE (Postman)\n- key: `pdfs/testEFS1.pdf`\n\n## PASO 7 — GitHub Actions (push main)\n\n## PASO 8 — Video explicativo\n\n---\n\nVariable `ec2_host`: 52.45.88.121",
+    "name": "Semana 3 — Empresa Transportista EFS + S3",
+    "description": "# Coleccion alineada con el codigo actual\n\n**Base URL:** `http://{{ec2_host}}:8080`\n\n**Endpoints:** `/api/guias`\n\n| Metodo | Ruta | Descripcion |\n|--------|------|-------------|\n| POST | `/api/guias` | Crear guia (EFS + S3) |\n| GET | `/api/guias?fecha=&transportista=` | Consultar guias |\n| GET | `/api/guias/download?...` | Descargar PDF |\n| PUT | `/api/guias` | Actualizar guia |\n| DELETE | `/api/guias?...` | Eliminar guia (solo S3) |\n\n---\n\n## Modo actividad (recomendado para entrega)\n\nKey generada: `{{fecha}}/{{transportista}}/{{nombreGuia}}.pdf`\n\nEjemplo: `20250604/TransportesSur/guia001.pdf`\n\nParametros: `fecha`, `transportista`, `nombreGuia`, `file`\n\n---\n\n## Modo profesor (apuntes de clase)\n\nKey directa: `{{s3_key}}` (ej. `pdfs/testEFS1.pdf`)\n\nParametro: `key` + `file`\n\nPara consultar en modo profesor usa `fecha=pdfs`.\n\n---\n\n## Variables de la coleccion\n\n- `ec2_host` — IP elastica de tu EC2\n- `fecha` — 20250604\n- `transportista` — TransportesSur\n- `nombreGuia` — guia001\n- `s3_key` — pdfs/testEFS1.pdf\n\nEl bucket S3 se configura en `application.properties` (`aws.s3.bucket`), no va en la URL.\n\n---\n\n## Orden sugerido para el video\n\n1. POST crear\n2. Verificar EFS en EC2\n3. Verificar objeto en consola S3\n4. GET consultar\n5. GET descargar\n6. PUT modificar\n7. DELETE eliminar",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "PASO 1 | POST | Crear guía | key pdfs/testEFS1.pdf | Pauta 1-2",
-      "event": [
+      "name": "Modo actividad — fecha/transportista",
+      "description": "Flujo principal de la actividad Semana 3. Key: fecha/transportista/nombreGuia.pdf",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('201 Created', () => pm.response.to.have.status(201));",
-              "pm.test('Key como profesor', () => {",
-              "  pm.expect(pm.response.json().key).to.eql('pdfs/testEFS1.pdf');",
-              "});"
-            ],
-            "type": "text/javascript"
-          }
-        }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [],
-        "body": {
-          "mode": "formdata",
-          "formdata": [
-            {"key": "file", "description": "OBLIGATORIO: Select Files → tu PDF", "type": "file", "src": []},
-            {"key": "key", "value": "{{s3_key}}", "type": "text", "description": "Igual que profesor en apuntes"}
-          ]
+          "name": "1. POST — Crear guia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "const expectedKey = pm.collectionVariables.get('fecha') + '/' + pm.collectionVariables.get('transportista') + '/' + pm.collectionVariables.get('nombreGuia') + '.pdf';",
+                  "",
+                  "pm.test('Key generada correctamente', () => {",
+                  "    pm.expect(json.key).to.eql(expectedKey);",
+                  "});",
+                  "",
+                  "pm.test('Respuesta contiene datos de la guia', () => {",
+                  "    pm.expect(json.fecha).to.eql(pm.collectionVariables.get('fecha'));",
+                  "    pm.expect(json.transportista).to.eql(pm.collectionVariables.get('transportista'));",
+                  "    pm.expect(json.nombreGuia).to.eql(pm.collectionVariables.get('nombreGuia') + '.pdf');",
+                  "    pm.expect(json.mensaje).to.include('creada');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "description": "OBLIGATORIO: Select Files → tu archivo PDF",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "fecha",
+                  "value": "{{fecha}}",
+                  "description": "Fecha de la guia (ej. 20250604)",
+                  "type": "text"
+                },
+                {
+                  "key": "transportista",
+                  "value": "{{transportista}}",
+                  "description": "Nombre del transportista",
+                  "type": "text"
+                },
+                {
+                  "key": "nombreGuia",
+                  "value": "{{nombreGuia}}",
+                  "description": "Nombre sin .pdf (se agrega automaticamente)",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"]
+            },
+            "description": "Crea la guia en EFS y S3.\n\nKey resultante: `{{fecha}}/{{transportista}}/{{nombreGuia}}.pdf`\n\nVerificar en EC2:\n```bash\nls /home/ec2-user/efs/{{fecha}}/{{transportista}}/\n```"
+          },
+          "response": []
         },
-        "url": "http://{{ec2_host}}:8080/api/guias",
-        "description": "Apuntes: form-data file + key pdfs/testEFS1.pdf\n\nDespués en EC2: cd pdfs/ && ls"
-      },
-      "response": []
+        {
+          "name": "2. GET — Consultar por fecha y transportista",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Respuesta tiene total y guias', () => {",
+                  "    pm.expect(json).to.have.property('total');",
+                  "    pm.expect(json).to.have.property('guias');",
+                  "    pm.expect(json.guias).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Filtros aplicados', () => {",
+                  "    pm.expect(json.fecha).to.eql(pm.collectionVariables.get('fecha'));",
+                  "    pm.expect(json.transportista).to.eql(pm.collectionVariables.get('transportista'));",
+                  "});",
+                  "",
+                  "pm.test('Al menos una guia listada', () => {",
+                  "    pm.expect(json.total).to.be.at.least(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias?fecha={{fecha}}&transportista={{transportista}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"],
+              "query": [
+                {"key": "fecha", "value": "{{fecha}}", "description": "Obligatorio"},
+                {"key": "transportista", "value": "{{transportista}}", "description": "Opcional"}
+              ]
+            },
+            "description": "Lista guias filtradas por fecha y transportista.\n\nDevuelve `total`, `fecha`, `transportista` y array `guias` con `key`, `size`, `lastModified`.\n\nNo confundir con descargar el PDF."
+          },
+          "response": []
+        },
+        {
+          "name": "2b. GET — Consultar solo por fecha",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Campo total presente', () => pm.expect(pm.response.json()).to.have.property('total'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias?fecha={{fecha}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"],
+              "query": [
+                {"key": "fecha", "value": "{{fecha}}"}
+              ]
+            },
+            "description": "Lista todas las guias bajo el prefijo `fecha/` (sin filtrar transportista)."
+          },
+          "response": []
+        },
+        {
+          "name": "3. GET — Descargar guia (PDF)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Content-Type es PDF', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('pdf');",
+                  "});",
+                  "pm.test('Respuesta tiene contenido', () => {",
+                  "    pm.expect(pm.response.responseSize).to.be.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias/download?fecha={{fecha}}&transportista={{transportista}}&nombreGuia={{nombreGuia}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias", "download"],
+              "query": [
+                {"key": "fecha", "value": "{{fecha}}"},
+                {"key": "transportista", "value": "{{transportista}}"},
+                {"key": "nombreGuia", "value": "{{nombreGuia}}"}
+              ]
+            },
+            "description": "Descarga el PDF desde S3.\n\nUsa Save Response → Save to a file → abrir el PDF.\n\nDiferente de GET consultar (que solo lista metadatos)."
+          },
+          "response": []
+        },
+        {
+          "name": "4. PUT — Actualizar guia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Guia actualizada', () => {",
+                  "    pm.expect(json.mensaje).to.include('actualizada');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "description": "PDF modificado (contenido distinto)",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "fecha",
+                  "value": "{{fecha}}",
+                  "type": "text"
+                },
+                {
+                  "key": "transportista",
+                  "value": "{{transportista}}",
+                  "type": "text"
+                },
+                {
+                  "key": "nombreGuia",
+                  "value": "{{nombreGuia}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"]
+            },
+            "description": "Sobrescribe la guia en EFS y S3 con la misma key.\n\nVerificar en consola S3: misma key, distinto tamano o lastModified."
+          },
+          "response": []
+        },
+        {
+          "name": "5. DELETE — Eliminar guia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias?fecha={{fecha}}&transportista={{transportista}}&nombreGuia={{nombreGuia}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"],
+              "query": [
+                {"key": "fecha", "value": "{{fecha}}"},
+                {"key": "transportista", "value": "{{transportista}}"},
+                {"key": "nombreGuia", "value": "{{nombreGuia}}"}
+              ]
+            },
+            "description": "Elimina la guia de S3.\n\nVerificar en consola AWS que el objeto ya no existe."
+          },
+          "response": []
+        }
+      ]
     },
     {
-      "name": "PASO 3 | PUT | Modificar guía | key pdfs/testEFS1.pdf | Pauta 3",
-      "event": [
+      "name": "Modo profesor — key directa",
+      "description": "Compatible con apuntes de clase. Key: pdfs/testEFS1.pdf",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"],
-            "type": "text/javascript"
-          }
-        }
-      ],
-      "request": {
-        "method": "PUT",
-        "header": [],
-        "body": {
-          "mode": "formdata",
-          "formdata": [
-            {"key": "file", "description": "PDF modificado", "type": "file", "src": []},
-            {"key": "key", "value": "{{s3_key}}", "type": "text"}
-          ]
+          "name": "1. POST — Crear con key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Key como profesor', () => {",
+                  "    pm.expect(pm.response.json().key).to.eql(pm.collectionVariables.get('s3_key'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "description": "OBLIGATORIO: Select Files → tu PDF",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "key",
+                  "value": "{{s3_key}}",
+                  "description": "Key completa (modo profesor)",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"]
+            },
+            "description": "Igual que apuntes del profesor: form-data `file` + `key`.\n\nEn EC2 veras `/home/ec2-user/efs/pdfs/testEFS1.pdf`"
+          },
+          "response": []
         },
-        "url": "http://{{ec2_host}}:8080/api/guias",
-        "description": "Apunte 12: mostrar en S3 que el archivo cambió."
-      },
-      "response": []
-    },
-    {
-      "name": "PASO 4 | GET | Descargar PDF | key pdfs/testEFS1.pdf | Pauta 4",
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('200 OK', () => pm.response.to.have.status(200));",
-              "pm.test('Content-Type PDF', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('pdf'));"
-            ],
-            "type": "text/javascript"
-          }
-        }
-      ],
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "http://{{ec2_host}}:8080/api/guias/download?key={{s3_key}}",
-          "host": ["{{ec2_host}}"],
-          "port": "8080",
-          "path": ["api", "guias", "download"],
-          "query": [{"key": "key", "value": "{{s3_key}}"}]
+          "name": "2. PUT — Modificar con key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "description": "PDF modificado",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "key",
+                  "value": "{{s3_key}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"]
+            },
+            "description": "Actualiza el archivo con la misma key."
+          },
+          "response": []
         },
-        "description": "Apunte 13: Save Response → abrir PDF.\nNo confundir con PASO 5 (consultar)."
-      },
-      "response": []
-    },
-    {
-      "name": "PASO 5 | GET | Consultar historial | fecha=pdfs | Pauta 5",
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('200 OK', () => pm.response.to.have.status(200));",
-              "pm.test('Campo total', () => pm.expect(pm.response.json().total).to.be.at.least(1));"
-            ],
-            "type": "text/javascript"
-          }
-        }
-      ],
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "http://{{ec2_host}}:8080/api/guias?fecha=pdfs",
-          "host": ["{{ec2_host}}"],
-          "port": "8080",
-          "path": ["api", "guias"],
-          "query": [{"key": "fecha", "value": "pdfs"}]
+          "name": "3. GET — Descargar con key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Content-Type es PDF', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('pdf');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias/download?key={{s3_key}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias", "download"],
+              "query": [
+                {"key": "key", "value": "{{s3_key}}"}
+              ]
+            },
+            "description": "Descarga el PDF usando la key directa."
+          },
+          "response": []
         },
-        "description": "Apunte 14: lista y cuenta archivos bajo pdfs/.\nActividad: filtros por fecha (aquí fecha=pdfs como carpeta raíz)."
-      },
-      "response": []
-    },
-    {
-      "name": "PASO 6 | DELETE | Eliminar guía | key pdfs/testEFS1.pdf",
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"],
-            "type": "text/javascript"
-          }
-        }
-      ],
-      "request": {
-        "method": "DELETE",
-        "header": [],
-        "url": {
-          "raw": "http://{{ec2_host}}:8080/api/guias?key={{s3_key}}",
-          "host": ["{{ec2_host}}"],
-          "port": "8080",
-          "path": ["api", "guias"],
-          "query": [{"key": "key", "value": "{{s3_key}}"}]
+          "name": "4. GET — Consultar historial (fecha=pdfs)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Campo total', () => {",
+                  "    pm.expect(pm.response.json().total).to.be.at.least(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias?fecha=pdfs",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"],
+              "query": [
+                {"key": "fecha", "value": "pdfs", "description": "Lista todo bajo pdfs/"}
+              ]
+            },
+            "description": "Lista objetos bajo el prefijo `pdfs/` (modo apuntes del profesor)."
+          },
+          "response": []
         },
-        "description": "Apunte 11 paso 5: verificar en S3 que ya no existe."
-      },
-      "response": []
+        {
+          "name": "5. DELETE — Eliminar con key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/guias?key={{s3_key}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "guias"],
+              "query": [
+                {"key": "key", "value": "{{s3_key}}"}
+              ]
+            },
+            "description": "Elimina el objeto de S3 usando la key directa."
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
-    {"key": "ec2_host", "value": "52.45.88.121"},
-    {"key": "s3_key", "value": "pdfs/testEFS1.pdf"}
+    {
+      "key": "ec2_host",
+      "value": "52.45.88.121",
+      "description": "IP elastica de tu instancia EC2"
+    },
+    {
+      "key": "fecha",
+      "value": "20250604",
+      "description": "Fecha para modo actividad"
+    },
+    {
+      "key": "transportista",
+      "value": "TransportesSur",
+      "description": "Nombre del transportista"
+    },
+    {
+      "key": "nombreGuia",
+      "value": "guia001",
+      "description": "Nombre de la guia sin extension .pdf"
+    },
+    {
+      "key": "s3_key",
+      "value": "pdfs/testEFS1.pdf",
+      "description": "Key directa modo profesor"
+    }
   ]
 }

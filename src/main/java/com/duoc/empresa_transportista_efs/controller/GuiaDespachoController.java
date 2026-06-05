@@ -28,6 +28,16 @@ public class GuiaDespachoController {
 
 	private final GuiaDespachoService guiaDespachoService;
 
+	/**
+	 * Crea una guia de despacho y la almacena en EFS y S3.
+	 *
+	 * @param file           Archivo PDF a subir
+	 * @param key            Clave completa opcional (modo profesor)
+	 * @param fecha          Fecha de la guia
+	 * @param transportista  Nombre del transportista
+	 * @param nombreGuia     Nombre del archivo de la guia
+	 * @return Respuesta con los datos de la guia creada
+	 */
 	@PostMapping
 	public ResponseEntity<GuiaCreadaResponse> crearGuia(
 			@RequestParam("file") MultipartFile file,
@@ -40,6 +50,15 @@ public class GuiaDespachoController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
 	}
 
+	/**
+	 * Descarga una guia de despacho desde S3.
+	 *
+	 * @param key            Clave completa opcional (modo profesor)
+	 * @param fecha          Fecha de la guia
+	 * @param transportista  Nombre del transportista
+	 * @param nombreGuia     Nombre del archivo de la guia
+	 * @return Archivo PDF descargado como bytes
+	 */
 	@GetMapping("/download")
 	public ResponseEntity<byte[]> descargarGuia(
 			@RequestParam(required = false) String key,
@@ -57,6 +76,16 @@ public class GuiaDespachoController {
 				.body(fileBytes);
 	}
 
+	/**
+	 * Actualiza una guia de despacho existente en EFS y S3.
+	 *
+	 * @param file           Nuevo archivo PDF
+	 * @param key            Clave completa opcional (modo profesor)
+	 * @param fecha          Fecha de la guia
+	 * @param transportista  Nombre del transportista
+	 * @param nombreGuia     Nombre del archivo de la guia
+	 * @return Respuesta con los datos de la guia actualizada
+	 */
 	@PutMapping
 	public ResponseEntity<GuiaCreadaResponse> actualizarGuia(
 			@RequestParam("file") MultipartFile file,
@@ -69,6 +98,15 @@ public class GuiaDespachoController {
 		return ResponseEntity.ok(response);
 	}
 
+	/**
+	 * Elimina una guia de despacho de S3.
+	 *
+	 * @param key            Clave completa opcional (modo profesor)
+	 * @param fecha          Fecha de la guia
+	 * @param transportista  Nombre del transportista
+	 * @param nombreGuia     Nombre del archivo de la guia
+	 * @return Respuesta sin contenido
+	 */
 	@DeleteMapping
 	public ResponseEntity<Void> eliminarGuia(
 			@RequestParam(required = false) String key,
@@ -80,6 +118,13 @@ public class GuiaDespachoController {
 		return ResponseEntity.noContent().build();
 	}
 
+	/**
+	 * Consulta guias de despacho por fecha y transportista.
+	 *
+	 * @param fecha          Fecha de busqueda (obligatoria)
+	 * @param transportista  Nombre del transportista (opcional)
+	 * @return Lista de guias con sus metadatos
+	 */
 	@GetMapping
 	public ResponseEntity<GuiaConsultaResponse> consultarGuias(
 			@RequestParam String fecha,

@@ -13,18 +13,14 @@ public class EfsService {
 	@Value("${efs.path}")
 	private String efsPath;
 
-	public File saveToEfs(String key, MultipartFile multipartFile) throws IOException {
-		File dest = new File(efsPath, key);
+	public File saveToEfs(String filename, MultipartFile multipartFile) throws IOException {
+
+		File dest = new File(efsPath, filename);
 		File parentDir = dest.getParentFile();
 		if (parentDir != null && !parentDir.exists()) {
 			parentDir.mkdirs();
 		}
 		multipartFile.transferTo(dest);
 		return dest;
-	}
-
-	public boolean deleteFromEfs(String key) {
-		File file = new File(efsPath, key);
-		return !file.exists() || file.delete();
 	}
 }

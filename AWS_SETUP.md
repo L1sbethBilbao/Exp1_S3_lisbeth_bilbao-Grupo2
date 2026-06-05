@@ -120,7 +120,17 @@ Flujo a explicar:
 Microservicio → /app/efs → Linux EC2 /home/ec2-user/efs → Amazon EFS
 ```
 
-## 8. Secrets de GitHub Actions
+## 8. Coleccion Postman
+
+Importar en Postman:
+
+```
+postman/Pruebas-Semana3.postman_collection.json
+```
+
+Editar la variable `ec2_host` con la IP elastica de tu EC2. Ver [POSTMAN_PRUEBAS.md](POSTMAN_PRUEBAS.md) para el flujo completo de pruebas.
+
+## 9. Secrets de GitHub Actions
 
 Configurar en el repositorio → Settings → Secrets:
 
@@ -144,6 +154,17 @@ Configurar en el repositorio → Settings → Secrets:
 **Nota:** La conexion SSH a EC2 usa `USER_SERVER` + `EC2_SSH_KEY`. Las credenciales AWS se pasan al contenedor Docker para S3.
 
 **Importante:** Las credenciales AWS Academy **expiran**. Cuando caduquen, actualiza los 3 secrets en GitHub y vuelve a ejecutar el workflow.
+
+## Arquitectura del codigo (referencia)
+
+```
+GuiaDespachoController
+    └── GuiaDespachoService (keys fecha/transportista, bucket desde application.properties)
+            ├── EfsService.saveToEfs()
+            └── AwsS3Service (listObjects, upload, downloadAsBytes, deleteObject, moveObject)
+```
+
+El bucket S3 se pasa internamente desde `AWS_S3_BUCKET`; no va en la URL de los endpoints (a diferencia del ejemplo del profesor que usa `/{bucket}/` en la ruta).
 
 ## Checklist antes de grabar el video
 
