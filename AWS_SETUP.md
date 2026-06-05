@@ -71,10 +71,10 @@ Asociar el rol a la instancia EC2. **No** hardcodear access keys en el codigo.
 sudo yum install -y amazon-efs-utils
 
 # Crear punto de montaje
-sudo mkdir -p /mnt/efs
+sudo mkdir -p /home/ec2-user/efs
 
 # Montar (reemplaza fs-xxxxx con tu ID de EFS)
-sudo mount -t efs fs-XXXXXXXX:/ /mnt/efs
+sudo mount -t efs fs-XXXXXXXX:/ /home/ec2-user/efs
 
 # Verificar
 df -h
@@ -83,7 +83,7 @@ df -h
 Para montaje persistente al reiniciar, agregar a `/etc/fstab`:
 
 ```
-fs-XXXXXXXX:/ /mnt/efs efs defaults,_netdev 0 0
+fs-XXXXXXXX:/ /home/ec2-user/efs efs defaults,_netdev 0 0
 ```
 
 ## 6. Ejecutar contenedor Docker en EC2
@@ -95,7 +95,7 @@ docker run -d \
   --name empresa-transportista-efs \
   --restart unless-stopped \
   -p 8080:8080 \
-  -v /mnt/efs:/app/efs \
+  -v /home/ec2-user/efs:/app/efs \
   -e AWS_S3_BUCKET=tu-bucket-guias \
   -e AWS_REGION=us-east-1 \
   TU_USUARIO/empresa-transportista-efs:latest
@@ -106,7 +106,7 @@ docker run -d \
 ```bash
 # En EC2
 df -h
-ls -R /mnt/efs
+ls -R /home/ec2-user/efs
 
 # Dentro del contenedor
 sudo docker exec -it empresa-transportista-efs bash
@@ -117,7 +117,7 @@ ls -R /app/efs
 Flujo a explicar:
 
 ```
-Microservicio → /app/efs → Linux EC2 /mnt/efs → Amazon EFS
+Microservicio → /app/efs → Linux EC2 /home/ec2-user/efs → Amazon EFS
 ```
 
 ## 8. Secrets de GitHub Actions
@@ -136,14 +136,18 @@ Configurar en el repositorio → Settings → Secrets:
 | `AWS_SESSION_TOKEN` | Token de sesion AWS Academy |
 | `AWS_REGION` | Region AWS (ej. us-east-1) |
 | `AWS_S3_BUCKET` | Nombre del bucket S3 (ej. cdy2204-1) |
+| `EFS_MOUNT_PATH` | Ruta EFS en EC2 (default: `/home/ec2-user/efs`) |
+| `EFS_PATH` | Ruta EFS en contenedor (default: `/app/efs`) |
 
-**Nota:** La conexion SSH a EC2 usa `USER_SERVER` + `EC2_SSH_KEY` (mismo patron que semana 2). Las credenciales AWS se pasan al contenedor Docker para S3.
+**EFS:** montar en EC2 con `sudo mount -t efs fs-XXXXXXXX:/ /home/ec2-user/efs`. El deploy mapea `-v EFS_MOUNT_PATH:EFS_PATH`.
+
+**Nota:** La conexion SSH a EC2 usa `USER_SERVER` + `EC2_SSH_KEY`. Las credenciales AWS se pasan al contenedor Docker para S3.
 
 **Importante:** Las credenciales AWS Academy **expiran**. Cuando caduquen, actualiza los 3 secrets en GitHub y vuelve a ejecutar el workflow.
 
 ## Checklist antes de grabar el video
 
-- [ ] EFS montado en `/mnt/efs` (`df -h` lo muestra)
+- [ ] EFS montado en `/home/ec2-user/efs` (`df -h` lo muestra)
 - [ ] Contenedor corriendo en puerto 8080
 - [ ] Bucket S3 creado y accesible desde EC2
 - [ ] POST desde Postman crea archivo en EFS y S3

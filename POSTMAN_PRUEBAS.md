@@ -35,7 +35,7 @@ Content-Type: multipart/form-data
 **Verificar en EC2:**
 
 ```bash
-ls /mnt/efs/20250604/TransportesSur/
+ls /home/ec2-user/efs/20250604/TransportesSur/
 # Debe aparecer guia001.pdf
 ```
 
@@ -113,7 +113,7 @@ En EC2, ejecutar en este orden:
 
 ```bash
 df -h
-cd /mnt/efs
+cd /home/ec2-user/efs
 ls
 cd 20250604/TransportesSur/
 ls
@@ -124,7 +124,7 @@ ls /app/efs/20250604/TransportesSur/
 exit
 ```
 
-Explicar: el micro escribe en `/app/efs`, Docker mapea a `/mnt/efs` en Linux, y eso esta montado en Amazon EFS.
+Explicar: el micro escribe en `/app/efs`, Docker mapea a `/home/ec2-user/efs` en Linux, y eso esta montado en Amazon EFS.
 
 ---
 
@@ -168,6 +168,6 @@ Orden recomendado:
 1. Seguir [AWS_SETUP.md](AWS_SETUP.md) (S3, EFS, EC2, IAM, Docker)
 2. Desplegar el contenedor con volumen EFS montado
 3. Probar cada endpoint con Postman usando la IP elástica
-4. Verificar EFS en la consola SSH (`ls /mnt/efs`, `docker exec`, `df -h`)
+4. Verificar EFS en la consola SSH (`ls /home/ec2-user/efs`, `docker exec`, `df -h`)
 5. Verificar objetos en la consola AWS S3
 6. Grabar el video con ese flujo en vivo
