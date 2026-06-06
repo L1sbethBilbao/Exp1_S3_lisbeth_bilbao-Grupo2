@@ -34,4 +34,11 @@ public class EfsService {
 		Files.write(dest.toPath(), content);
 		return dest;
 	}
+
+	public void deleteFile(String filename) throws IOException {
+		File file = new File(efsPath, filename);
+		if (file.exists() && !file.delete()) {
+			throw new IOException("No se pudo eliminar el archivo: " + filename);
+		}
+	}
 }

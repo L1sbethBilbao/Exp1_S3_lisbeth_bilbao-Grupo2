@@ -75,6 +75,12 @@ public class GuiaDespachoService {
 		return fecha.trim() + "/" + transportista.trim() + "/" + normalizarNombreGuia(nombreGuia);
 	}
 
+	public String buildActualizadoKey(String fecha, String transportista, String nombreGuia) {
+		validarParametros(fecha, transportista, nombreGuia);
+		String nombreActualizado = normalizarNombreGuia(nombreGuia).replace(".pdf", "") + "-actualizado";
+		return buildKey(fecha, transportista, nombreActualizado);
+	}
+
 	/**
 	 * Obtiene el nombre del archivo a partir de la clave S3/EFS.
 	 *

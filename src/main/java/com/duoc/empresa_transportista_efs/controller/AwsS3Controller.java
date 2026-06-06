@@ -140,11 +140,13 @@ public class AwsS3Controller {
 
 		try {
 
-			String resolvedKey = guiaDespachoService.resolveKey(key, fecha, transportista, nombreGuia);
+			String oldKey = guiaDespachoService.resolveKey(key, fecha, transportista, nombreGuia);
+			String newKey = guiaDespachoService.buildActualizadoKey(fecha, transportista, nombreGuia);
 
-			efsService.saveToEfs(resolvedKey, file);
-
-			awsS3Service.upload(bucket, resolvedKey, file);
+			efsService.saveToEfs(newKey, file);
+			awsS3Service.upload(bucket, newKey, file);
+			efsService.deleteFile(oldKey);
+			awsS3Service.deleteObject(bucket, oldKey);
 
 			return ResponseEntity.ok().build();
 		} catch (Exception e) {

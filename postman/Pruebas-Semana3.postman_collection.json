@@ -321,12 +321,49 @@
           "response": []
         },
         {
-          "name": "5. PUT — Actualizar guía pedido 1",
+          "name": "5. POST — Subir PDF externo (ruta propia)",
           "event": [
             {
               "listen": "test",
               "script": {
-                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"],
+                "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": [], "description": "Cualquier PDF desde tu computadora"},
+                {"key": "fecha", "value": "{{fecha}}", "type": "text"},
+                {"key": "transportista", "value": "{{transportista}}", "type": "text"},
+                {"key": "nombreGuia", "value": "{{nombreGuiaExterna}}", "type": "text"}
+              ]
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/s3/{{bucket}}/object",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["s3", "{{bucket}}", "object"]
+            },
+            "description": "Sube un PDF externo con nombre y ruta propios. No reemplaza guia-PED-001.pdf. Key: fecha/transportista/documento-externo.pdf en EFS + S3."
+          },
+          "response": []
+        },
+        {
+          "name": "6. PUT — Actualizar guía pedido 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('nombreGuia', pm.collectionVariables.get('nombreGuia') + '-actualizado');"
+                ],
                 "type": "text/javascript"
               }
             }
@@ -350,12 +387,12 @@
               "port": "8080",
               "path": ["s3", "{{bucket}}", "object"]
             },
-            "description": "Capa cloud: actualiza en EFS + S3 (pauta modificar)."
+            "description": "Actualiza la guia del pedido 1: renombra a guia-PED-001-actualizado.pdf, elimina la anterior en EFS y S3. Queda 1 archivo de guia en cada lado."
           },
           "response": []
         },
         {
-          "name": "6. DELETE — Eliminar guía pedido 2",
+          "name": "7. DELETE — Eliminar guía pedido 2",
           "event": [
             {
               "listen": "test",
@@ -397,6 +434,7 @@
     {"key": "nombreGuia", "value": "guia-PED-001"},
     {"key": "fecha2", "value": "20250605"},
     {"key": "transportista2", "value": "TransportesNorte"},
-    {"key": "nombreGuia2", "value": "guia-PED-002"}
+    {"key": "nombreGuia2", "value": "guia-PED-002"},
+    {"key": "nombreGuiaExterna", "value": "documento-externo"}
   ]
 }
