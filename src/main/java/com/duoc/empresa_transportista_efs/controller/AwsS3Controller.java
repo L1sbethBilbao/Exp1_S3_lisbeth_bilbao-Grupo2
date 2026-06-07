@@ -24,7 +24,9 @@ import com.duoc.empresa_transportista_efs.service.EfsService;
 import com.duoc.empresa_transportista_efs.service.GuiaDespachoService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequestMapping("/s3")
 @RequiredArgsConstructor
@@ -189,6 +191,7 @@ public class AwsS3Controller {
 		try {
 
 			String resolvedKey = guiaDespachoService.resolveKey(key, fecha, transportista, nombreGuia);
+			log.info("DELETE guia — key resuelta: {}", resolvedKey);
 			efsService.deleteFile(resolvedKey);
 			awsS3Service.deleteObject(bucket, resolvedKey);
 			return ResponseEntity.noContent().build();

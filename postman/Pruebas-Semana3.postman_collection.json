@@ -417,7 +417,7 @@
                 {"key": "nombreGuia", "value": "{{nombreGuia2}}"}
               ]
             },
-            "description": "Elimina la segunda guía en EFS y S3. Tras el 204, verifica en la consola S3 que el objeto ya no aparece y en la EC2 con `ls ~/efs/{{fecha2}}/{{transportista2}}/` que el PDF ya no está (las carpetas padre pueden quedar vacías)."
+            "description": "Elimina SOLO la guía del pedido 2 en EFS y S3: `20250605/TransportesNorte/guia-PED-002.pdf`. El pedido 1 (`20250604/TransportesSur/`) NO se borra — debe seguir con archivos. Verifica con:\n`find ~/efs/20250605 -type f` (debe quedar vacío)\n`find ~/efs/20250604 -type f` (debe seguir con guías del pedido 1)"
           },
           "response": []
         }
