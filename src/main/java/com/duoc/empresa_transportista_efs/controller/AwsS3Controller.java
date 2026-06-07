@@ -172,7 +172,7 @@ public class AwsS3Controller {
 	}
 
 	/**
-	 * Elimina un objeto de S3
+	 * Elimina un objeto de EFS y S3
 	 * 
 	 * @param bucket        Nombre del bucket
 	 * @param key           Clave del objeto (modo profesor)
@@ -186,8 +186,15 @@ public class AwsS3Controller {
 			@RequestParam(required = false) String fecha, @RequestParam(required = false) String transportista,
 			@RequestParam(required = false) String nombreGuia) {
 
-		String resolvedKey = guiaDespachoService.resolveKey(key, fecha, transportista, nombreGuia);
-		awsS3Service.deleteObject(bucket, resolvedKey);
-		return ResponseEntity.noContent().build();
+		try {
+
+			String resolvedKey = guiaDespachoService.resolveKey(key, fecha, transportista, nombreGuia);
+			efsService.deleteFile(resolvedKey);
+			awsS3Service.deleteObject(bucket, resolvedKey);
+			return ResponseEntity.noContent().build();
+		} catch (Exception e) {
+			e.printStackTrace();
+			return ResponseEntity.internalServerError().build();
+		}
 	}
 }

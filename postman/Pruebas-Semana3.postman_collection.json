@@ -417,7 +417,7 @@
                 {"key": "nombreGuia", "value": "{{nombreGuia2}}"}
               ]
             },
-            "description": "Elimina la segunda guía del bucket."
+            "description": "Elimina la segunda guía en EFS y S3. Tras el 204, verifica en la consola S3 que el objeto ya no aparece y en la EC2 con `ls ~/efs/{{fecha2}}/{{transportista2}}/` que el PDF ya no está (las carpetas padre pueden quedar vacías)."
           },
           "response": []
         }
