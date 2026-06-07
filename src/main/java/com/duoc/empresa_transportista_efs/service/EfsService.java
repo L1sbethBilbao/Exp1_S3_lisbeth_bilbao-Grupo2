@@ -36,16 +36,16 @@ public class EfsService {
 	}
 
 	public void deleteFile(String filename) throws IOException {
-		Path filePath = resolveFilePath(filename);
-		log.info("Intentando eliminar archivo EFS: {}", filePath.toAbsolutePath());
+		Path filePath = resolveFilePath(filename).normalize();
+		log.info("Intentando eliminar archivo EFS: {}", filePath);
+
 		if (!Files.exists(filePath)) {
-			log.warn("Archivo no encontrado en EFS (no existe): {}", filePath.toAbsolutePath());
+			log.warn("Archivo no encontrado en EFS: {}", filePath);
 			return;
 		}
-		if (!Files.deleteIfExists(filePath)) {
-			throw new IOException("No se pudo eliminar el archivo: " + filePath.toAbsolutePath());
-		}
-		log.info("Archivo eliminado de EFS: {}", filePath.toAbsolutePath());
+
+		Files.delete(filePath);
+		log.info("Archivo eliminado de EFS: {}", filePath);
 	}
 
 	private Path resolveFilePath(String filename) {

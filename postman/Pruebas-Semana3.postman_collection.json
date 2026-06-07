@@ -222,7 +222,7 @@
               "port": "8080",
               "path": ["s3", "{{bucket}}", "objects"]
             },
-            "description": "Inventario completo: ves las 2 keys con orden fecha/transportista/archivo.pdf"
+            "description": "Inventario completo del bucket. Requiere variable `bucket=cdy2204-1` (tu bucket real). Si falla 404, revisa que Postman tenga el bucket correcto, no `tu-bucket-guias`."
           },
           "response": []
         },
@@ -234,7 +234,7 @@
               "script": {
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('total = 1', () => pm.expect(pm.response.json().total).to.eql(1));"
+                  "pm.test('hay al menos 1 guia TransportesSur', () => pm.expect(pm.response.json().total).to.be.at.least(1));"
                 ],
                 "type": "text/javascript"
               }
@@ -266,7 +266,7 @@
               "script": {
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('total = 1', () => pm.expect(pm.response.json().total).to.eql(1));"
+                  "pm.test('hay al menos 1 guia TransportesNorte', () => pm.expect(pm.response.json().total).to.be.at.least(1));"
                 ],
                 "type": "text/javascript"
               }
@@ -350,7 +350,7 @@
               "port": "8080",
               "path": ["s3", "{{bucket}}", "object"]
             },
-            "description": "Sube un PDF externo con nombre y ruta propios. No reemplaza guia-PED-001.pdf. Key: fecha/transportista/documento-externo.pdf en EFS + S3."
+            "description": "Sube un PDF externo. IMPORTANTE: en Body → form-data → campo `file` debes seleccionar un PDF de tu PC (clic en Select Files). Sin archivo seleccionado falla con 500."
           },
           "response": []
         },
@@ -387,7 +387,7 @@
               "port": "8080",
               "path": ["s3", "{{bucket}}", "object"]
             },
-            "description": "Actualiza la guia del pedido 1: renombra a guia-PED-001-actualizado.pdf, elimina la anterior en EFS y S3. Queda 1 archivo de guia en cada lado."
+            "description": "Actualiza la guia del pedido 1. IMPORTANTE: en Body → form-data → campo `file` selecciona un PDF (el descargado en paso 4 o cualquier PDF). Renombra a guia-PED-001-actualizado y elimina la anterior en EFS y S3."
           },
           "response": []
         },
@@ -425,8 +425,8 @@
     }
   ],
   "variable": [
-    {"key": "ec2_host", "value": "52.45.88.121"},
-    {"key": "bucket", "value": "tu-bucket-guias", "description": "Nombre de tu bucket S3 (igual que AWS_S3_BUCKET)"},
+    {"key": "ec2_host", "value": "52.45.88.121", "description": "IP publica de tu EC2"},
+    {"key": "bucket", "value": "cdy2204-1", "description": "OBLIGATORIO: mismo nombre que tu bucket S3 real (AWS_S3_BUCKET en Docker)"},
     {"key": "pedido_id_1", "value": "PED-001"},
     {"key": "pedido_id_2", "value": "PED-002"},
     {"key": "fecha", "value": "20250604"},

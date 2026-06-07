@@ -196,7 +196,8 @@ public class AwsS3Controller {
 			awsS3Service.deleteObject(bucket, resolvedKey);
 			return ResponseEntity.noContent().build();
 		} catch (Exception e) {
-			e.printStackTrace();
+			log.error("Error en DELETE guia (fecha={}, transportista={}, nombreGuia={}): {}",
+					fecha, transportista, nombreGuia, e.getMessage(), e);
 			return ResponseEntity.internalServerError().build();
 		}
 	}
